@@ -1,8 +1,8 @@
 # 📢 Sistem Pemantau Kebisingan Ruang Kelas Berbasis IoT (Multi-Node)
 
 > **Mata Kuliah / Proyek**: Internet of Things (IoT)  
-> **Status**: Selesai Tahap 1 (Anggota 1: Edge 1, Sensor Audio, DSP RMS, Setup Wokwi & PlatformIO)  
-> **Next Step**: Dilanjutkan oleh Anggota 2 (Edge 2 & Algoritma), Anggota 3 (Dashboard MQTT), dan Anggota 4 (Integrasi & Uji Coba).
+> **Status**: Selesai Tahap 1 (Anggota 1: Edge 1, Sensor Audio, DSP RMS, Setup Wokwi/PlatformIO) & Tahap 2 (Anggota 2: Edge 2 / HP 2 - Klasifikasi Khusus Kebisingan Obrolan)  
+> **Next Step**: Dilanjutkan oleh Anggota 3 (Dashboard MQTT Terpadu) dan Anggota 4 (Integrasi Multi-Node, Pengujian, & Presentasi).
 
 ---
 
@@ -45,9 +45,9 @@ Putar kenop potensiometer (simulasi sensor suara mic analog di Wokwi) untuk meng
 
 ---
 
-### Langkah 4: Demo Alternatif via HP Android Asli (Web Mic API)
-Jika dosen meminta bukti pembacaan dari mikrofon HP asli:
-1. Buka file `client_mobile_hp1/hp1_web_mic.html` di browser laptop atau kirim/buka di browser Chrome HP Android.
+### Langkah 4: Demo Alternatif via HP 1 (Web Mic API)
+Jika dosen meminta bukti pembacaan dari mikrofon HP 1 (Depan Kelas):
+1. Buka file `client_mobile_hp1/hp1_web_mic.html` di browser laptop atau browser Chrome HP Android.
 2. Klik **"🎤 Mulai Baca Mikrofon HP"** dan izinkan akses audio.
 3. Berbicaralah atau tepuk tangan:
    - Nilai desibel (dB) dan grafik RMS akan bergerak mengikuti suara asli.
@@ -55,9 +55,22 @@ Jika dosen meminta bukti pembacaan dari mikrofon HP asli:
 
 ---
 
+### Langkah 5: Demo Edge HP 2 — Deteksi Kebisingan Obrolan Belakang Kelas (Tugas Anggota 2)
+Edge Node 2 dilengkapi algoritma klasifikasi khusus kebisingan obrolan siswa:
+1. **Opsi A (Web Browser / HP Android)**:
+   - Buka `client_mobile_hp2/hp2_web_mic.html` di browser laptop atau browser HP Android.
+   - Tersedia visualizer spektrum FFT (menyorot pita suara vokal manusia 300–3400 Hz).
+   - Klik **"Mulai Baca Mikrofon HP 2"** untuk mikrofon asli, atau gunakan tombol simulasi (`Sim: Hening`, `Sim: Obrolan`, `Sim: Gaduh`) untuk pengujian instan.
+   - Data langsung dipublish ke topik `kelas/kebisingan/node2/telemetry` & `kelas/kebisingan/hp2/telemetry`!
+2. **Opsi B (Python Script)**:
+   - Jalankan terminal: `python client_mobile_hp2/hp2_mic_python.py`
+   - Script akan otomatis mengekstraksi FFT pita suara vokal manusia, Zero-Crossing Rate (ZCR), dan Decision Tree untuk mengklasifikasikan intensitas obrolan serta mengirim data ke MQTT.
+
+---
+
 ## 🔄 PETUNJUK LANJUTAN UNTUK ANGGOTA TIM
 
-Bagian ini adalah acuan kerja untuk **Anggota 2, 3, dan 4** agar pengembangan sistem tetap terintegrasi tanpa ada miskomunikasi format data.
+Bagian ini adalah acuan kerja untuk **Anggota 3 dan 4** agar pengembangan dashboard dan integrasi akhir berjalan mulus.
 
 ```
        [ Edge 1: ESP32 / HP 1 ]  ---> Topic: kelas/kebisingan/node1/telemetry ---\
@@ -65,13 +78,16 @@ Bagian ini adalah acuan kerja untuk **Anggota 2, 3, dan 4** agar pengembangan si
        [ Edge 2: HP 2 / Node 2 ] ---> Topic: kelas/kebisingan/node2/telemetry ---/
 ```
 
-### 👤 Tugas Anggota 2 — Edge 2 & Algoritma Klasifikasi
-* **Tanggung Jawab**:
-  1. Menyiapkan perangkat Edge ke-2 (bisa menduplikasi folder ESP32 ini atau menggunakan script HP 2).
-  2. Mengubah ID perangkat menjadi `"NODE_02"` / `"HP_02"` dan topik kirim menjadi:  
-     `kelas/kebisingan/node2/telemetry`
-  3. Menerapkan algoritma cerdas/klasifikasi tambahan (misal: *Exponential Moving Average*, *K-Nearest Neighbor (KNN)* sederhana, atau *Fuzzy Logic*) untuk membedakan antara kebisingan kontinu (obrolan siswa) vs kebisingan impulsif (ketukan meja/benda jatuh).
-  4. Memastikan Edge 2 mengirim status yang konsisten ke broker MQTT.
+### 👤 Tugas Anggota 2 — Edge 2 & Algoritma Klasifikasi Obrolan
+* **Status: SELESAI**
+* **Implementasi**:
+  1. Menyiapkan perangkat Edge ke-2 pada folder `client_mobile_hp2/` (`hp2_web_mic.html` & `hp2_mic_python.py`).
+  2. ID perangkat: `"HP_02"`, lokasi `"Ruang_Kelas_Belakang"`.
+  3. Topik publish: `kelas/kebisingan/node2/telemetry` & `kelas/kebisingan/hp2/telemetry`, alarm: `kelas/kebisingan/node2/alert`.
+  4. Algoritma cerdas:
+     - Ekstraksi energi spektral pita frekuensi vokal manusia (300 Hz – 3400 Hz via FFT).
+     - Perhitungan Zero-Crossing Rate (ZCR) untuk membedakan ucapan vokal vs derau konstan.
+     - Decision Tree Classifier untuk mendeteksi: `HENING`, `OBROLAN KONDUSIF`, `OBROLAN AKTIF / DISKUSI`, `OBROLAN SANGAT GADUH / BISING`, dan `BISING NON OBROLAN`.
 
 ---
 
@@ -155,8 +171,11 @@ Pemantau_Kebisingan_Ruang_Kelas/
 ├── diagram.json                # Rangkaian sirkuit Wokwi (ESP32, Mic/Pot, LED, Buzzer)
 ├── src/
 │   └── main.cpp                # Firmware ESP32: Sampling audio, RMS, dB, Filter, MQTT
-└── client_mobile_hp1/          # Alternatif Edge HP Android
-    ├── hp1_web_mic.html        # Web Audio API (buka di browser Chrome HP)
-    └── hp1_mic_python.py       # Script Python pembaca mic
+├── client_mobile_hp1/          # Edge HP 1 (Depan Kelas - Level dB Umum)
+│   ├── hp1_web_mic.html        # Web Audio API (buka di browser Chrome HP)
+│   └── hp1_mic_python.py       # Script Python pembaca mic
+└── client_mobile_hp2/          # Edge HP 2 (Belakang Kelas - Deteksi Obrolan)
+    ├── hp2_web_mic.html        # Web Audio API + FFT Visualizer & Klasifikasi Obrolan
+    └── hp2_mic_python.py       # Script Python FFT & Decision Tree Obrolan Kelas
 ```
 

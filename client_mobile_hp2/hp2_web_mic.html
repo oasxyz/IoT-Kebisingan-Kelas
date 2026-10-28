@@ -1,0 +1,994 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Edge Device HP 2 (Node 2) - Sistem Pemantau Kebisingan Ruang Kelas berbasis IoT dengan Klasifikasi Khusus Kebisingan Obrolan Siswa via Web Audio API & MQTT">
+  <title>Edge HP 2 - Klasifikasi Kebisingan Obrolan Kelas (IoT)</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- MQTT over WebSocket (Paho MQTT) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.85);
+      --card-border: #1e293b;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #8b5cf6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px 14px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 520px;
+    }
+
+    .card {
+      background: var(--card-bg);
+      backdrop-filter: blur(14px);
+      -webkit-backdrop-filter: blur(14px);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.6);
+    }
+
+    /* Header */
+    .header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    .badge-node {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      padding: 4px 12px;
+      border-radius: 9999px;
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+    }
+
+    .badge-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-cyan);
+      box-shadow: 0 0 8px var(--accent-cyan);
+      animation: pulseDot 2s infinite;
+    }
+
+    @keyframes pulseDot {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.4; transform: scale(0.85); }
+    }
+
+    h1 {
+      font-size: 22px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+      background: linear-gradient(135deg, #ffffff 40%, #94a3b8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      color: var(--text-muted);
+      font-size: 13px;
+      line-height: 1.4;
+    }
+
+    /* Primary Metric Box */
+    .metric-hero {
+      background: linear-gradient(180deg, rgba(15, 23, 42, 0.8) 0%, rgba(15, 23, 42, 0.95) 100%);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 20px;
+      text-align: center;
+      margin-bottom: 18px;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .metric-hero::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 10%;
+      right: 10%;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(6, 182, 212, 0.4), transparent);
+    }
+
+    .metric-label {
+      font-size: 12px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 1.2px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .db-display {
+      font-size: 58px;
+      font-weight: 800;
+      letter-spacing: -1.5px;
+      color: var(--accent-emerald);
+      margin: 2px 0 6px;
+      transition: color 0.3s ease;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .db-unit {
+      font-size: 24px;
+      font-weight: 600;
+      color: var(--text-muted);
+      margin-left: 2px;
+    }
+
+    /* Status Pill */
+    .status-pill {
+      display: inline-block;
+      padding: 7px 18px;
+      border-radius: 9999px;
+      font-weight: 700;
+      font-size: 13px;
+      letter-spacing: 0.3px;
+      text-transform: uppercase;
+      transition: all 0.3s ease;
+      background: rgba(16, 185, 129, 0.15);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .status-hening {
+      background: rgba(148, 163, 184, 0.15);
+      color: #cbd5e1;
+      border-color: rgba(148, 163, 184, 0.3);
+    }
+
+    .status-kondusif {
+      background: rgba(16, 185, 129, 0.18);
+      color: #34d399;
+      border-color: rgba(16, 185, 129, 0.35);
+      box-shadow: 0 0 15px rgba(16, 185, 129, 0.15);
+    }
+
+    .status-diskusi {
+      background: rgba(245, 158, 11, 0.18);
+      color: #fbbf24;
+      border-color: rgba(245, 158, 11, 0.35);
+      box-shadow: 0 0 15px rgba(245, 158, 11, 0.15);
+    }
+
+    .status-gaduh {
+      background: rgba(244, 63, 94, 0.2);
+      color: #fb7185;
+      border-color: rgba(244, 63, 94, 0.4);
+      box-shadow: 0 0 20px rgba(244, 63, 94, 0.25);
+      animation: alertPulse 1.2s infinite;
+    }
+
+    @keyframes alertPulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.03); }
+    }
+
+    /* Chatter Intelligence Panel */
+    .ai-panel {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(51, 65, 85, 0.7);
+      border-radius: 14px;
+      padding: 16px;
+      margin-bottom: 18px;
+    }
+
+    .ai-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-cyan);
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      margin-bottom: 12px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .feature-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .feature-item {
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .feature-name {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .feature-val {
+      font-size: 16px;
+      font-weight: 700;
+      color: #f1f5f9;
+      font-variant-numeric: tabular-nums;
+    }
+
+    /* Progress bar for probability */
+    .bar-wrap {
+      margin-top: 10px;
+    }
+
+    .bar-header {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 4px;
+    }
+
+    .progress-bar-bg {
+      background: #090d16;
+      height: 8px;
+      border-radius: 9999px;
+      overflow: hidden;
+      border: 1px solid #1e293b;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald));
+      border-radius: 9999px;
+      transition: width 0.3s ease, background 0.3s ease;
+    }
+
+    /* Visualizer Canvas */
+    .visualizer-box {
+      margin-bottom: 18px;
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 12px;
+      padding: 12px;
+      text-align: center;
+    }
+
+    .visualizer-label {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 8px;
+    }
+
+    .vocal-tag {
+      color: var(--accent-cyan);
+      font-weight: 600;
+    }
+
+    canvas {
+      width: 100%;
+      height: 80px;
+      display: block;
+      border-radius: 6px;
+    }
+
+    /* Controls & Buttons */
+    .btn-group {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      margin-bottom: 18px;
+    }
+
+    .btn-primary {
+      background: linear-gradient(135deg, #0284c7 0%, #2563eb 100%);
+      color: white;
+      border: none;
+      padding: 14px 20px;
+      border-radius: 12px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 8px;
+      transition: all 0.2s ease;
+      box-shadow: 0 8px 20px -6px rgba(37, 99, 235, 0.5);
+    }
+
+    .btn-primary:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 10px 25px -5px rgba(37, 99, 235, 0.6);
+    }
+
+    .btn-stop {
+      background: linear-gradient(135deg, #e11d48 0%, #be123c 100%);
+      box-shadow: 0 8px 20px -6px rgba(225, 29, 72, 0.5);
+    }
+
+    .btn-stop:hover {
+      box-shadow: 0 10px 25px -5px rgba(225, 29, 72, 0.6);
+    }
+
+    /* Simulation selector */
+    .sim-bar {
+      display: flex;
+      gap: 6px;
+      background: #090d16;
+      padding: 4px;
+      border-radius: 10px;
+      border: 1px solid #1e293b;
+    }
+
+    .sim-btn {
+      flex: 1;
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 8px 6px;
+      font-size: 11px;
+      font-weight: 600;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .sim-btn.active {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    /* MQTT Status Bar */
+    .mqtt-bar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 10px 14px;
+      background: #090d16;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-bottom: 16px;
+    }
+
+    .mqtt-indicator {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-weight: 600;
+    }
+
+    .mqtt-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+    }
+
+    .mqtt-connected {
+      background: var(--accent-emerald);
+      box-shadow: 0 0 8px var(--accent-emerald);
+    }
+
+    .mqtt-disconnected {
+      background: var(--accent-rose);
+      box-shadow: 0 0 8px var(--accent-rose);
+    }
+
+    /* Console Logs */
+    .log-box {
+      background: #060911;
+      border: 1px solid #1e293b;
+      border-radius: 10px;
+      padding: 12px;
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      line-height: 1.5;
+      color: #64748b;
+      height: 110px;
+      overflow-y: auto;
+    }
+
+    .log-line {
+      margin-bottom: 2px;
+      word-break: break-all;
+    }
+
+    .log-accent { color: var(--accent-cyan); }
+    .log-alert { color: var(--accent-rose); font-weight: bold; }
+    .log-success { color: var(--accent-emerald); }
+
+    /* Footer meta */
+    .footer-meta {
+      text-align: center;
+      margin-top: 16px;
+      font-size: 11px;
+      color: #64748b;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <div class="card">
+      
+      <!-- Header -->
+      <div class="header">
+        <div class="badge-node">
+          <span class="badge-dot"></span>
+          <span>Node 2 (HP 2) &bull; Belakang Kelas</span>
+        </div>
+        <h1>Deteksi Kebisingan Obrolan</h1>
+        <p class="subtitle">Edge Computing Audio Classifier &bull; FFT Human Vocal Band (300&ndash;3400 Hz) &bull; MQTT Cloud</p>
+      </div>
+
+      <!-- Hero Metric Box -->
+      <div class="metric-hero">
+        <div class="metric-label">Tingkat Kebisingan Suara</div>
+        <div class="db-display" id="dbDisplay">-- <span class="db-unit">dB</span></div>
+        <div class="status-pill status-hening" id="statusPill">SIAP DIJALANKAN</div>
+      </div>
+
+      <!-- Chatter Intelligence Panel -->
+      <div class="ai-panel">
+        <div class="ai-title">
+          <span>🧠 Algoritma Klasifikasi Obrolan Kelas</span>
+        </div>
+        
+        <div class="feature-grid">
+          <div class="feature-item">
+            <div class="feature-name">Pita Suara Vokal (300-3400Hz)</div>
+            <div class="feature-val" id="vocalRatioVal">0.0%</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-name">Kategori Suara</div>
+            <div class="feature-val" id="categoryVal" style="font-size: 13px;">Hening</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-name">RMS Audio</div>
+            <div class="feature-val" id="rmsVal">0.0000</div>
+          </div>
+          <div class="feature-item">
+            <div class="feature-name">Peak Amplitude</div>
+            <div class="feature-val" id="peakVal">0.00</div>
+          </div>
+        </div>
+
+        <div class="bar-wrap">
+          <div class="bar-header">
+            <span>Probabilitas Suara Obrolan Siswa</span>
+            <span id="probVal">0%</span>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="probBarFill"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Realtime Audio Spectrum Visualizer -->
+      <div class="visualizer-box">
+        <div class="visualizer-label">
+          <span>Spektrum Frekuensi Audio Real-Time</span>
+          <span class="vocal-tag">&bull; Pita Vokal Manusia (300 - 3400 Hz)</span>
+        </div>
+        <canvas id="canvasVisualizer" width="480" height="90"></canvas>
+      </div>
+
+      <!-- Controls -->
+      <div class="btn-group">
+        <button class="btn-primary" id="btnToggle" onclick="toggleAudioEngine()">
+          <span>🎤</span>
+          <span id="btnText">Mulai Baca Mikrofon HP 2</span>
+        </button>
+
+        <div class="sim-bar">
+          <button class="sim-btn active" id="simLive" onclick="setMode('live')">Mic Asli</button>
+          <button class="sim-btn" id="simQuiet" onclick="setMode('quiet')">Sim: Hening</button>
+          <button class="sim-btn" id="simTalk" onclick="setMode('talk')">Sim: Obrolan</button>
+          <button class="sim-btn" id="simLoud" onclick="setMode('loud')">Sim: Gaduh</button>
+        </div>
+      </div>
+
+      <!-- MQTT Status Bar -->
+      <div class="mqtt-bar">
+        <span>MQTT Broker: broker.hivemq.com</span>
+        <div class="mqtt-indicator">
+          <span class="mqtt-dot" id="mqttDot"></span>
+          <span id="mqttStatusText">Terputus</span>
+        </div>
+      </div>
+
+      <!-- Live Log Terminal -->
+      <div class="log-box" id="logBox">
+        <div class="log-line log-accent">[Sistem] Siap dijalankan di browser HP 2 / PC.</div>
+        <div class="log-line">[Sistem] Data akan dipublish ke topik: kelas/kebisingan/node2/telemetry</div>
+      </div>
+
+      <div class="footer-meta">
+        Proyek IoT Pemantau Kebisingan Ruang Kelas &bull; Anggota 2 (Edge HP 2)
+      </div>
+
+    </div>
+  </div>
+
+  <script>
+    // ==========================================
+    // KONFIGURASI GLOBAL MQTT & EDGE NODE 2
+    // ==========================================
+    const BROKER_HOST = "broker.hivemq.com";
+    const BROKER_PORT = 8884; // WebSocket SSL port for HiveMQ
+    const TOPIC_TELEMETRY = "kelas/kebisingan/node2/telemetry";
+    const TOPIC_TELEMETRY_HP2 = "kelas/kebisingan/hp2/telemetry";
+    const TOPIC_ALERT = "kelas/kebisingan/node2/alert";
+    const CLIENT_ID = "HP2_WebEdge_" + Math.random().toString(16).substr(2, 8);
+    const THRESHOLD_CHATTER_DB = 75.0;
+
+    let isRunning = false;
+    let audioContext = null;
+    let analyser = null;
+    let microphoneStream = null;
+    let mqttClient = null;
+    let processInterval = null;
+    let animFrameId = null;
+    let activeMode = 'live'; // 'live', 'quiet', 'talk', 'loud'
+
+    // UI Elements
+    const dbDisplay = document.getElementById("dbDisplay");
+    const statusPill = document.getElementById("statusPill");
+    const vocalRatioVal = document.getElementById("vocalRatioVal");
+    const categoryVal = document.getElementById("categoryVal");
+    const rmsVal = document.getElementById("rmsVal");
+    const peakVal = document.getElementById("peakVal");
+    const probVal = document.getElementById("probVal");
+    const probBarFill = document.getElementById("probBarFill");
+    const btnToggle = document.getElementById("btnToggle");
+    const btnText = document.getElementById("btnText");
+    const mqttDot = document.getElementById("mqttDot");
+    const mqttStatusText = document.getElementById("mqttStatusText");
+    const logBox = document.getElementById("logBox");
+    const canvas = document.getElementById("canvasVisualizer");
+    const canvasCtx = canvas.getContext("2d");
+
+    function log(msg, type = "normal") {
+      const d = new Date().toLocaleTimeString();
+      let cls = "log-line";
+      if (type === "accent") cls += " log-accent";
+      if (type === "alert") cls += " log-alert";
+      if (type === "success") cls += " log-success";
+
+      logBox.innerHTML += `<div class="${cls}">[${d}] ${msg}</div>`;
+      logBox.scrollTop = logBox.scrollHeight;
+    }
+
+    // ==========================================
+    // MQTT CLIENT INITIALIZATION
+    // ==========================================
+    function connectMqtt() {
+      log(`Menghubungkan ke broker MQTT ${BROKER_HOST}:${BROKER_PORT}...`, "accent");
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, CLIENT_ID);
+
+      mqttClient.onConnectionLost = (resp) => {
+        mqttDot.className = "mqtt-dot mqtt-disconnected";
+        mqttStatusText.innerText = "Terputus";
+        log(`Koneksi MQTT terputus: ${resp.errorMessage}`, "alert");
+      };
+
+      mqttClient.connect({
+        useSSL: true,
+        timeout: 5,
+        keepAliveInterval: 30,
+        onSuccess: () => {
+          mqttDot.className = "mqtt-dot mqtt-connected";
+          mqttStatusText.innerText = "Terhubung (HiveMQ)";
+          log(`MQTT Terhubung! Menyiapkan telemetri ke: ${TOPIC_TELEMETRY}`, "success");
+        },
+        onFailure: (err) => {
+          mqttDot.className = "mqtt-dot mqtt-disconnected";
+          mqttStatusText.innerText = "Gagal Konek";
+          log(`Gagal konek MQTT: ${err.errorMessage}`, "alert");
+        }
+      });
+    }
+
+    // ==========================================
+    // ENGINE AUDIO & MIKROFON
+    // ==========================================
+    async function toggleAudioEngine() {
+      if (!isRunning) {
+        startAudioEngine();
+      } else {
+        stopAudioEngine();
+      }
+    }
+
+    async function startAudioEngine() {
+      try {
+        if (!mqttClient || !mqttClient.isConnected()) {
+          connectMqtt();
+        }
+
+        if (activeMode === 'live') {
+          // Minta akses mikrofon HP
+          const stream = await navigator.mediaDevices.getUserMedia({ 
+            audio: { echoCancellation: false, noiseSuppression: false, autoGainControl: false }, 
+            video: false 
+          });
+          microphoneStream = stream;
+
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(stream);
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 1024;
+          analyser.smoothingTimeConstant = 0.8;
+          source.connect(analyser);
+
+          log("Mikrofon HP 2 aktif. Window sampling dimulai.", "success");
+        } else {
+          log(`Mode simulasi aktif: ${activeMode}`, "accent");
+        }
+
+        isRunning = true;
+        btnToggle.className = "btn-primary btn-stop";
+        btnText.innerText = "Hentikan Pemantauan";
+
+        // Loop Visualizer Canvas
+        renderVisualizer();
+
+        // Loop Pengolahan Data & MQTT Publish setiap 1 detik
+        processInterval = setInterval(processAndPublish, 1000);
+
+      } catch (err) {
+        alert("Gagal mengakses mikrofon: " + err.message + "\nSilakan gunakan tombol simulasi jika izin ditolak.");
+        log(`Error mikrofon: ${err.message}`, "alert");
+        setMode('talk');
+        startAudioEngine();
+      }
+    }
+
+    function stopAudioEngine() {
+      isRunning = false;
+      btnToggle.className = "btn-primary";
+      btnText.innerText = "Mulai Baca Mikrofon HP 2";
+
+      if (processInterval) clearInterval(processInterval);
+      if (animFrameId) cancelAnimationFrame(animFrameId);
+
+      if (microphoneStream) {
+        microphoneStream.getTracks().forEach(track => track.stop());
+        microphoneStream = null;
+      }
+      if (audioContext) {
+        audioContext.close();
+        audioContext = null;
+      }
+
+      dbDisplay.innerHTML = `-- <span class="db-unit">dB</span>`;
+      statusPill.className = "status-pill status-hening";
+      statusPill.innerText = "BERHENTI";
+      log("Pemantauan dihentikan oleh pengguna.", "accent");
+    }
+
+    // ==========================================
+    // PENGOLAHAN DATA & KLASIFIKASI OBROLAN
+    // ==========================================
+    function processAndPublish() {
+      let rms = 0;
+      let peak = 0;
+      let db = 40.0;
+      let vocalRatio = 15.0;
+
+      if (activeMode === 'live' && analyser && audioContext) {
+        const bufferLength = analyser.fftSize;
+        const timeData = new Float32Array(bufferLength);
+        analyser.getFloatTimeDomainData(timeData);
+
+        // 1. Hitung RMS dan Peak
+        let sumSq = 0;
+        for (let i = 0; i < bufferLength; i++) {
+          const val = timeData[i];
+          sumSq += val * val;
+          if (Math.abs(val) > peak) peak = Math.abs(val);
+        }
+        rms = Math.sqrt(sumSq / bufferLength);
+
+        // Konversi ke dB SPL kalibrasi
+        db = 20 * Math.log10(rms + 0.00001) + 94;
+        db = Math.max(32, Math.min(105, db));
+
+        // 2. Analisis Spektrum FFT untuk Deteksi Pita Suara Vokal (300 - 3400 Hz)
+        const freqBins = analyser.frequencyBinCount;
+        const freqData = new Uint8Array(freqBins);
+        analyser.getByteFrequencyData(freqData);
+
+        const sampleRate = audioContext.sampleRate;
+        const binHz = (sampleRate / 2) / freqBins;
+
+        let totalEnergy = 0;
+        let vocalEnergy = 0;
+
+        for (let i = 0; i < freqBins; i++) {
+          const freq = i * binHz;
+          const energy = freqData[i] * freqData[i];
+          totalEnergy += energy;
+          if (freq >= 300 && freq <= 3400) {
+            vocalEnergy += energy;
+          }
+        }
+
+        vocalRatio = totalEnergy > 0 ? (vocalEnergy / totalEnergy) * 100 : 0;
+
+      } else {
+        // Mode Simulasi Audio Sintetis
+        if (activeMode === 'quiet') {
+          rms = 0.002 + Math.random() * 0.001;
+          db = 38.0 + Math.random() * 5.0;
+          vocalRatio = 12.0 + Math.random() * 6.0;
+          peak = 0.01;
+        } else if (activeMode === 'talk') {
+          rms = 0.025 + Math.random() * 0.012;
+          db = 66.0 + Math.random() * 6.0;
+          vocalRatio = 68.0 + Math.random() * 15.0;
+          peak = 0.12;
+        } else if (activeMode === 'loud') {
+          rms = 0.080 + Math.random() * 0.035;
+          db = 78.5 + Math.random() * 7.0;
+          vocalRatio = 75.0 + Math.random() * 18.0;
+          peak = 0.35;
+        }
+      }
+
+      // Algoritma Klasifikasi Obrolan
+      let status = "SANGAT TENANG";
+      let statusClass = "status-pill status-hening";
+      let classification = "HENING";
+      let chatterDetected = false;
+      let chatterProb = 0;
+      let isAlert = false;
+
+      if (db < 52.0) {
+        status = "SANGAT TENANG (HENING)";
+        statusClass = "status-pill status-hening";
+        classification = "HENING";
+        chatterDetected = false;
+        chatterProb = Math.round(Math.max(2, vocalRatio * 0.15));
+        isAlert = false;
+      } else if (vocalRatio < 42.0 && db >= 65.0) {
+        status = "BISING BUKAN OBROLAN";
+        statusClass = "status-pill status-diskusi";
+        classification = "BISING_NON_OBROLAN";
+        chatterDetected = false;
+        chatterProb = Math.round(vocalRatio * 0.3);
+        isAlert = (db >= THRESHOLD_CHATTER_DB);
+      } else {
+        // Suara didominasi pita vokal manusia
+        chatterDetected = true;
+        chatterProb = Math.round(Math.min(99, Math.max(20, vocalRatio * 0.95)));
+
+        if (db < 65.0) {
+          status = "OBROLAN KONDUSIF (BISIK / TENANG)";
+          statusClass = "status-pill status-kondusif";
+          classification = "OBROLAN_KONDUSIF";
+          isAlert = false;
+        } else if (db < THRESHOLD_CHATTER_DB) {
+          status = "OBROLAN AKTIF / DISKUSI";
+          statusClass = "status-pill status-diskusi";
+          classification = "OBROLAN_DISKUSI";
+          isAlert = false;
+        } else {
+          status = "OBROLAN SANGAT BISING / GADUH";
+          statusClass = "status-pill status-gaduh";
+          classification = "OBROLAN_GADUH";
+          isAlert = true;
+        }
+      }
+
+      // Update UI Tampilan
+      dbDisplay.innerHTML = `${db.toFixed(1)} <span class="db-unit">dB</span>`;
+      if (db < 65) {
+        dbDisplay.style.color = "var(--accent-emerald)";
+      } else if (db < THRESHOLD_CHATTER_DB) {
+        dbDisplay.style.color = "var(--accent-amber)";
+      } else {
+        dbDisplay.style.color = "var(--accent-rose)";
+      }
+
+      statusPill.className = statusClass;
+      statusPill.innerText = status;
+
+      vocalRatioVal.innerText = vocalRatio.toFixed(1) + "%";
+      categoryVal.innerText = classification;
+      rmsVal.innerText = rms.toFixed(4);
+      peakVal.innerText = peak.toFixed(2);
+      probVal.innerText = chatterProb + "%";
+      probBarFill.style.width = chatterProb + "%";
+
+      if (chatterProb > 65) {
+        probBarFill.style.background = isAlert ? "var(--accent-rose)" : "linear-gradient(90deg, #f59e0b, #ef4444)";
+      } else {
+        probBarFill.style.background = "linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald))";
+      }
+
+      // Payload Telemetri MQTT Standar Tim
+      const payload = {
+        device_id: "HP_02",
+        device_name: "HP2_Edge_Chatter_Classifier",
+        device_type: "Smartphone_Android_Mic_Node2",
+        location: "Ruang_Kelas_Belakang",
+        rms: Number(rms.toFixed(4)),
+        peak: Number(peak.toFixed(2)),
+        db: Number(db.toFixed(1)),
+        threshold_db: THRESHOLD_CHATTER_DB,
+        chatter_detected: chatterDetected,
+        vocal_energy_ratio: Number(vocalRatio.toFixed(1)),
+        chatter_prob: chatterProb,
+        classification: classification,
+        status: status,
+        alert: isAlert,
+        timestamp: new Date().toISOString()
+      };
+
+      if (mqttClient && mqttClient.isConnected()) {
+        const msg = new Paho.MQTT.Message(JSON.stringify(payload));
+        msg.destinationName = TOPIC_TELEMETRY;
+        mqttClient.send(msg);
+
+        // Kirim juga ke TOPIC_TELEMETRY_HP2
+        const msgHp = new Paho.MQTT.Message(JSON.stringify(payload));
+        msgHp.destinationName = TOPIC_TELEMETRY_HP2;
+        mqttClient.send(msgHp);
+
+        if (isAlert) {
+          const alertPayload = {
+            device_id: "HP_02",
+            location: "Ruang_Kelas_Belakang",
+            event: "CHATTER_NOISE_EXCEEDED",
+            db_level: Number(db.toFixed(1)),
+            chatter_prob: chatterProb,
+            message: `Peringatan: Kebisingan obrolan di Ruang_Kelas_Belakang mencapai ${db.toFixed(1)} dB!`
+          };
+          const alertMsg = new Paho.MQTT.Message(JSON.stringify(alertPayload));
+          alertMsg.destinationName = TOPIC_ALERT;
+          mqttClient.send(alertMsg);
+          log(`🚨 ALERT SENT: ${db.toFixed(1)} dB (Prob Obrolan ${chatterProb}%)`, "alert");
+        } else {
+          log(`Sent MQTT: ${db.toFixed(1)} dB | ${status}`, "normal");
+        }
+      }
+    }
+
+    // ==========================================
+    // AUDIO SPECTRUM VISUALIZER
+    // ==========================================
+    function renderVisualizer() {
+      if (!isRunning) return;
+      animFrameId = requestAnimationFrame(renderVisualizer);
+
+      const width = canvas.width;
+      const height = canvas.height;
+      canvasCtx.clearRect(0, 0, width, height);
+
+      if (analyser && activeMode === 'live') {
+        const binCount = analyser.frequencyBinCount;
+        const data = new Uint8Array(binCount);
+        analyser.getByteFrequencyData(data);
+
+        const barCount = 48;
+        const step = Math.floor(binCount / barCount);
+        const barWidth = (width / barCount) - 2;
+
+        for (let i = 0; i < barCount; i++) {
+          let sum = 0;
+          for (let j = 0; j < step; j++) {
+            sum += data[i * step + j] || 0;
+          }
+          const barHeight = (sum / step / 255) * height;
+          const x = i * (barWidth + 2);
+          const y = height - barHeight;
+
+          // Highlight frekuensi vokal 300-3400Hz (bar ke-4 sampai bar ke-28)
+          if (i >= 4 && i <= 28) {
+            canvasCtx.fillStyle = '#06b6d4';
+          } else {
+            canvasCtx.fillStyle = '#334155';
+          }
+
+          canvasCtx.fillRect(x, y, barWidth, barHeight);
+        }
+      } else {
+        // Gambar visualizer simulasi sintetis
+        const barCount = 48;
+        const barWidth = (width / barCount) - 2;
+        const t = Date.now() / 200;
+
+        for (let i = 0; i < barCount; i++) {
+          let hFactor = 0.1;
+          if (activeMode === 'talk') hFactor = 0.5 + 0.3 * Math.sin(t + i * 0.4);
+          if (activeMode === 'loud') hFactor = 0.8 + 0.2 * Math.sin(t * 1.5 + i * 0.5);
+
+          if (i >= 4 && i <= 28) {
+            hFactor *= 1.4;
+            canvasCtx.fillStyle = '#10b981';
+          } else {
+            canvasCtx.fillStyle = '#1e293b';
+          }
+
+          const barHeight = Math.min(height - 4, Math.max(4, hFactor * (height * 0.6)));
+          const x = i * (barWidth + 2);
+          const y = height - barHeight;
+          canvasCtx.fillRect(x, y, barWidth, barHeight);
+        }
+      }
+    }
+
+    // ==========================================
+    // SIMULASI MODE SWITCHER
+    // ==========================================
+    function setMode(mode) {
+      activeMode = mode;
+      document.querySelectorAll(".sim-btn").forEach(btn => btn.classList.remove("active"));
+      if (mode === 'live') document.getElementById("simLive").classList.add("active");
+      if (mode === 'quiet') document.getElementById("simQuiet").classList.add("active");
+      if (mode === 'talk') document.getElementById("simTalk").classList.add("active");
+      if (mode === 'loud') document.getElementById("simLoud").classList.add("active");
+
+      log(`Mode operasional diubah ke: ${mode.toUpperCase()}`, "accent");
+      if (isRunning && mode !== 'live' && microphoneStream) {
+        microphoneStream.getTracks().forEach(t => t.stop());
+      }
+    }
+
+    // Auto-init visualizer background
+    canvasCtx.fillStyle = '#1e293b';
+    canvasCtx.fillRect(0, canvas.height - 4, canvas.width, 4);
+  </script>
+</body>
+</html>
