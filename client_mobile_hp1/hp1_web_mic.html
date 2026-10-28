@@ -1,0 +1,218 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edge HP 1 - Sensor Kebisingan Mikrofon</title>
+  <!-- MQTT over WebSocket (paho-mqtt) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+  <style>
+    * { box-sizing: border-box; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: #0f172a; color: #f8fafc; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; }
+    .card { background-color: #1e293b; border-radius: 16px; padding: 24px; width: 100%; max-width: 480px; box-shadow: 0 10px 25px rgba(0,0,0,0.5); text-align: center; border: 1px solid #334155; }
+    h1 { font-size: 20px; margin-bottom: 8px; color: #38bdf8; }
+    p.subtitle { color: #94a3b8; font-size: 13px; margin-top: 0; margin-bottom: 20px; }
+    .metric-box { background: #0f172a; border-radius: 12px; padding: 18px; margin-bottom: 16px; border: 1px solid #334155; }
+    .db-value { font-size: 52px; font-weight: bold; color: #4ade80; margin: 4px 0; }
+    .rms-value { font-size: 14px; color: #94a3b8; }
+    .badge { display: inline-block; padding: 6px 14px; border-radius: 9999px; font-weight: bold; font-size: 14px; margin-top: 8px; }
+    .badge-kondusif { background-color: #14532d; color: #4ade80; }
+    .badge-warning { background-color: #713f12; color: #facc15; }
+    .badge-danger { background-color: #7f1d1d; color: #f87171; }
+    .btn { background-color: #2563eb; color: white; border: none; padding: 12px 24px; font-size: 16px; border-radius: 8px; cursor: pointer; width: 100%; font-weight: 600; margin-top: 10px; transition: background 0.2s; }
+    .btn:hover { background-color: #1d4ed8; }
+    .btn-stop { background-color: #dc2626; }
+    .btn-stop:hover { background-color: #b91c1c; }
+    .status-text { margin-top: 14px; font-size: 12px; color: #94a3b8; }
+    .log-box { margin-top: 20px; background: #090d16; border-radius: 8px; padding: 12px; text-align: left; font-family: monospace; font-size: 11px; height: 110px; overflow-y: auto; color: #64748b; border: 1px solid #1e293b; }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>📱 Edge Device HP 1 (Mikrofon)</h1>
+    <p class="subtitle">Pemantau Kebisingan Ruang Kelas via Audio Web API & MQTT</p>
+
+    <div class="metric-box">
+      <div style="font-size: 12px; text-transform: uppercase; letter-spacing: 1px; color: #94a3b8;">Estimasi Kebisingan</div>
+      <div class="db-value" id="dispDb">-- dB</div>
+      <div class="rms-value" id="dispRms">RMS: 0.0000 | Puncak: 0.00</div>
+      <div class="badge badge-kondusif" id="dispStatus">SIAP DIJALANKAN</div>
+    </div>
+
+    <button class="btn" id="btnToggle" onclick="toggleMic()">🎤 Mulai Baca Mikrofon HP</button>
+
+    <p class="status-text" id="mqttStatus">Status MQTT: Terputus</p>
+
+    <div class="log-box" id="logBox">
+      [System] Buka halaman ini di HP Android untuk izin akses mikrofon & kirim telemetry MQTT.
+    </div>
+  </div>
+
+  <script>
+    let isRunning = false;
+    let audioContext = null;
+    let analyser = null;
+    let microphoneStream = null;
+    let mqttClient = null;
+    let intervalTimer = null;
+
+    const BROKER_HOST = "broker.hivemq.com";
+    const BROKER_PORT = 8884; // WebSocket SSL port for HiveMQ
+    const TOPIC_TELEMETRY = "kelas/kebisingan/hp1/telemetry";
+    const CLIENT_ID = "HP1_WebEdge_" + Math.random().toString(16).substr(2, 8);
+
+    function log(msg) {
+      const box = document.getElementById("logBox");
+      const d = new Date().toLocaleTimeString();
+      box.innerHTML += `<div>[${d}] ${msg}</div>`;
+      box.scrollTop = box.scrollHeight;
+    }
+
+    function initMqtt() {
+      log(`Menghubungkan MQTT ke ${BROKER_HOST}:${BROKER_PORT}...`);
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, CLIENT_ID);
+
+      mqttClient.onConnectionLost = (resp) => {
+        document.getElementById("mqttStatus").innerText = "Status MQTT: Terputus (" + resp.errorMessage + ")";
+        document.getElementById("mqttStatus").style.color = "#f87171";
+      };
+
+      mqttClient.connect({
+        useSSL: true,
+        onSuccess: () => {
+          document.getElementById("mqttStatus").innerText = "Status MQTT: Terhubung ke Broker (HiveMQ)";
+          document.getElementById("mqttStatus").style.color = "#4ade80";
+          log("MQTT Terhubung! Siap mengirim data ke: " + TOPIC_TELEMETRY);
+        },
+        onFailure: (err) => {
+          document.getElementById("mqttStatus").innerText = "Gagal konek MQTT: " + err.errorMessage;
+          document.getElementById("mqttStatus").style.color = "#f87171";
+          log("Gagal konek MQTT: " + err.errorMessage);
+        }
+      });
+    }
+
+    async function toggleMic() {
+      const btn = document.getElementById("btnToggle");
+      if (!isRunning) {
+        try {
+          if (!mqttClient || !mqttClient.isConnected()) {
+            initMqtt();
+          }
+
+          // Minta Izin Audio HP Android
+          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+          microphoneStream = stream;
+
+          audioContext = new (window.AudioContext || window.webkitAudioContext)();
+          const source = audioContext.createMediaStreamSource(stream);
+          analyser = audioContext.createAnalyser();
+          analyser.fftSize = 512;
+          source.connect(analyser);
+
+          isRunning = true;
+          btn.innerText = "⏹ Berhenti";
+          btn.className = "btn btn-stop";
+          log("Izin mikrofon diberikan. Pengukuran dimulai.");
+
+          intervalTimer = setInterval(processAudioAndPublish, 1000);
+        } catch (err) {
+          alert("Gagal mengakses mikrofon: " + err.message);
+          log("Error mic: " + err.message);
+        }
+      } else {
+        stopMic();
+      }
+    }
+
+    function stopMic() {
+      isRunning = false;
+      const btn = document.getElementById("btnToggle");
+      btn.innerText = "🎤 Mulai Baca Mikrofon HP";
+      btn.className = "btn";
+
+      if (intervalTimer) clearInterval(intervalTimer);
+      if (microphoneStream) {
+        microphoneStream.getTracks().forEach(track => track.stop());
+      }
+      if (audioContext) audioContext.close();
+
+      document.getElementById("dispStatus").innerText = "BERHENTI";
+      document.getElementById("dispStatus").className = "badge";
+      log("Pengukuran mikrofon dihentikan.");
+    }
+
+    function processAudioAndPublish() {
+      if (!analyser) return;
+
+      const bufferLength = analyser.fftSize;
+      const dataArray = new Float32Array(bufferLength);
+      analyser.getFloatTimeDomainData(dataArray);
+
+      // Data Processing 1: Hitung RMS (Root Mean Square)
+      let sumSquares = 0.0;
+      let peak = 0.0;
+      for (let i = 0; i < bufferLength; i++) {
+        const val = dataArray[i];
+        sumSquares += val * val;
+        if (Math.abs(val) > peak) peak = Math.abs(val);
+      }
+      const rms = Math.sqrt(sumSquares / bufferLength);
+
+      // Konversi RMS ke estimasi dB SPL
+      // dB = 20 * log10(rms / reference)
+      let db = 20 * Math.log10(rms + 0.00001) + 94; // 94 dB kalibrasi standar SPL
+      if (db < 30) db = 30;
+      if (db > 105) db = 105;
+
+      // Klasifikasi Status
+      let status = "KONDUSIF";
+      let badgeClass = "badge badge-kondusif";
+      let isAlert = false;
+
+      if (db < 50) {
+        status = "SANGAT TENANG";
+      } else if (db < 70) {
+        status = "KONDUSIF";
+      } else if (db < 80) {
+        status = "RAMAI / PERINGATAN";
+        badgeClass = "badge badge-warning";
+        isAlert = true;
+      } else {
+        status = "SANGAT BISING";
+        badgeClass = "badge badge-danger";
+        isAlert = true;
+      }
+
+      // Update UI
+      document.getElementById("dispDb").innerText = db.toFixed(1) + " dB";
+      document.getElementById("dispRms").innerText = `RMS: ${rms.toFixed(4)} | Puncak: ${peak.toFixed(2)}`;
+      const statusBadge = document.getElementById("dispStatus");
+      statusBadge.innerText = status;
+      statusBadge.className = badgeClass;
+
+      // Telemetri JSON
+      const payload = {
+        device_id: "HP_01",
+        device_type: "Smartphone_Android_Mic",
+        location: "Ruang_Kelas_Tengah",
+        rms: Number(rms.toFixed(4)),
+        peak: Number(peak.toFixed(2)),
+        db: Number(db.toFixed(1)),
+        status: status,
+        alert: isAlert,
+        timestamp: new Date().toISOString()
+      };
+
+      if (mqttClient && mqttClient.isConnected()) {
+        const msg = new Paho.MQTT.Message(JSON.stringify(payload));
+        msg.destinationName = TOPIC_TELEMETRY;
+        mqttClient.send(msg);
+        log(`Sent MQTT: ${payload.db} dB | ${payload.status}`);
+      }
+    }
+  </script>
+</body>
+</html>
+

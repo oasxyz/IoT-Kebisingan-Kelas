@@ -1,0 +1,71 @@
+{
+  "version": 1,
+  "author": "Kelompok IoT - Pemantau Kebisingan Ruang Kelas",
+  "editor": "wokwi",
+  "parts": [
+    { "type": "board-esp32-devkit-c-v4", "id": "esp", "top": 0, "left": 0, "attrs": {} },
+    {
+      "type": "wokwi-potentiometer",
+      "id": "pot_sound",
+      "top": -90,
+      "left": -160,
+      "attrs": { "label": "Sensor Suara (Analog Mic)" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_alert",
+      "top": -70,
+      "left": 170,
+      "attrs": { "color": "red", "label": "Bising (Alert)" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r1",
+      "top": -10,
+      "left": 170,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-led",
+      "id": "led_normal",
+      "top": 60,
+      "left": 170,
+      "attrs": { "color": "green", "label": "Kondusif (Normal)" }
+    },
+    {
+      "type": "wokwi-resistor",
+      "id": "r2",
+      "top": 120,
+      "left": 170,
+      "attrs": { "value": "220" }
+    },
+    {
+      "type": "wokwi-buzzer",
+      "id": "bz1",
+      "top": 190,
+      "left": 170,
+      "attrs": { "label": "Buzzer Alarm" }
+    }
+  ],
+  "connections": [
+    [ "esp:TX", "$serialMonitor:RX", "", [] ],
+    [ "esp:RX", "$serialMonitor:TX", "", [] ],
+
+    [ "pot_sound:VCC", "esp:3V3", "red", [ "v0" ] ],
+    [ "pot_sound:GND", "esp:GND.1", "black", [ "v0" ] ],
+    [ "pot_sound:SIG", "esp:34", "blue", [ "v0" ] ],
+
+    [ "led_alert:A", "esp:2", "red", [ "v0" ] ],
+    [ "led_alert:C", "r1:1", "black", [ "v0" ] ],
+    [ "r1:2", "esp:GND.2", "black", [ "v0" ] ],
+
+    [ "led_normal:A", "esp:4", "green", [ "v0" ] ],
+    [ "led_normal:C", "r2:1", "black", [ "v0" ] ],
+    [ "r2:2", "esp:GND.2", "black", [ "v0" ] ],
+
+    [ "bz1:1", "esp:5", "purple", [ "v0" ] ],
+    [ "bz1:2", "esp:GND.2", "black", [ "v0" ] ]
+  ],
+  "dependencies": {}
+}
+
