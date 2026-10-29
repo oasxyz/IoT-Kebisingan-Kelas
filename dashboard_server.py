@@ -132,12 +132,28 @@ class MqttRoomFusionWorker:
 
     def _on_connect(self, client, userdata, flags, rc, properties=None):
         if rc == 0:
-            client.subscribe([(TOPIC_TELEMETRY_WILDCARD, 0), (TOPIC_ALERT_WILDCARD, 0)])
-            print(f"[MQTT SERVICE] Subscribed ke {TOPIC_TELEMETRY_WILDCARD} & {TOPIC_ALERT_WILDCARD}")
+            client.subscribe([
+                (TOPIC_TELEMETRY_WILDCARD, 0),
+                (TOPIC_ALERT_WILDCARD, 0),
+                ("kelas/kebisingan/+/control", 0),
+                ("kelas/kebisingan/control", 0),
+            ])
+            print(f"[MQTT SERVICE] Subscribed ke telemetri, alert, dan kontrol ({TOPIC_TELEMETRY_WILDCARD})")
 
     def _on_message(self, client, userdata, msg):
         topic = msg.topic
         payload_str = msg.payload.decode("utf-8", errors="ignore")
+
+        # Jika topik kontrol dua arah dari Dashboard
+        if "control" in topic:
+            try:
+                cmd = json.loads(payload_str)
+                if "set_threshold" in cmd:
+                    self.threshold_db = float(cmd["set_threshold"])
+                    print(f"[MQTT SERVICE] Threshold ruangan diperbarui dari kontrol: {self.threshold_db} dB")
+            except Exception:
+                pass
+            return
 
         # Jika topik alarm
         if "alert" in topic:

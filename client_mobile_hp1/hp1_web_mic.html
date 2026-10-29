@@ -199,9 +199,9 @@
 
       if (db < 50) {
         status = "SANGAT TENANG";
-      } else if (db < 70) {
+      } else if (db < thresholdDb) {
         status = "KONDUSIF";
-      } else if (db < 80) {
+      } else if (db < thresholdDb + 8) {
         status = "RAMAI / PERINGATAN";
         badgeClass = "badge badge-warning";
         isAlert = true;

@@ -1028,8 +1028,11 @@
         const pill1 = document.getElementById("n1StatusPill");
         pill1.innerText = n1.status;
         pill1.style.color = n1.db >= currentThreshold ? "var(--accent-rose)" : "var(--accent-emerald)";
+        pill1.style.borderColor = n1.db >= currentThreshold ? "rgba(244, 63, 94, 0.3)" : "rgba(16, 185, 129, 0.3)";
 
-        document.getElementById("n1Heartbeat").innerText = "Online • Baru saja";
+        const hb1 = document.getElementById("n1Heartbeat");
+        hb1.innerText = "Online • Baru saja";
+        hb1.style.color = "var(--text-muted)";
       }
 
       // 2. Update Edge 2 (Belakang Kelas - Deteksi Obrolan)
@@ -1055,8 +1058,11 @@
         const pill2 = document.getElementById("n2StatusPill");
         pill2.innerText = n2.classification;
         pill2.style.color = n2.db >= currentThreshold ? "var(--accent-rose)" : (n2.chatter_prob >= 50 ? "var(--accent-amber)" : "var(--accent-purple)");
+        pill2.style.borderColor = n2.db >= currentThreshold ? "rgba(244, 63, 94, 0.3)" : "rgba(139, 92, 246, 0.3)";
 
-        document.getElementById("n2Heartbeat").innerText = "Online • Baru saja";
+        const hb2 = document.getElementById("n2Heartbeat");
+        hb2.innerText = "Online • Baru saja";
+        hb2.style.color = "var(--text-muted)";
       }
 
       // 3. Hitung Room Fusion
@@ -1090,16 +1096,27 @@
         heroText.innerHTML = `<span>✅</span> <span style="color:var(--accent-cyan)">KONDUSIF — PEMBELAJARAN BERLANGSUNG</span>`;
         heroDesc.innerText = "Tingkat suara berada dalam batas wajar aktivitas pembelajaran di ruang kelas.";
       }
+    }
 
-      // 4. Update Grafik Line Chart
+    // 4. Update Grafik Line Chart Ter-Throttle (Tepat 1 Hz / 1 Titik per Detik)
+    function tickChart() {
+      const now = Date.now();
+      const n1Active = Boolean(nodeState.node1.lastSeen && (now - nodeState.node1.lastSeen < 4000));
+      const n2Active = Boolean(nodeState.node2.lastSeen && (now - nodeState.node2.lastSeen < 4000));
+
+      // Jika belum ada data dari awal, jangan geser grafik kosong
+      if (!n1Active && !n2Active && nodeState.node1.db === null && nodeState.node2.db === null) {
+        return;
+      }
+
       const nowLabel = new Date().toLocaleTimeString();
       chartLabels.push(nowLabel);
       if (chartLabels.length > MAX_DATA_POINTS) chartLabels.shift();
 
-      dataNode1.push(n1.db);
+      dataNode1.push(n1Active ? nodeState.node1.db : null);
       if (dataNode1.length > MAX_DATA_POINTS) dataNode1.shift();
 
-      dataNode2.push(n2.db);
+      dataNode2.push(n2Active ? nodeState.node2.db : null);
       if (dataNode2.length > MAX_DATA_POINTS) dataNode2.shift();
 
       dataThreshold.push(currentThreshold);
@@ -1107,6 +1124,7 @@
 
       noiseChart.update("none");
     }
+    setInterval(tickChart, 1000);
 
     // ========================================================
     // LOGIKA MQTT CONNECTION (PAHO MQTT WEBSOCKET)
@@ -1125,13 +1143,18 @@
       };
 
       mqttClient.onMessageArrived = (message) => {
-        packetCounter++;
-        document.getElementById("packetCount").innerText = packetCounter;
-
         const topic = message.destinationName;
         const payloadStr = message.payloadString;
 
-        // Tangkap Topik Alarm Langsung
+        // 1. Abaikan topik status agregasi ruangan dan kontrol agar tidak masuk ke normalizeTelemetry (mencegah glitch 40.0 dB di Edge 2)
+        if (topic.includes("/room/status") || topic.includes("/control")) {
+          return;
+        }
+
+        packetCounter++;
+        document.getElementById("packetCount").innerText = packetCounter;
+
+        // 2. Tangkap Topik Alarm Langsung
         if (topic.includes("/alert")) {
           try {
             const alertData = JSON.parse(payloadStr);
@@ -1380,6 +1403,8 @@
       } else {
         btnText.innerText = "Hentikan Simulator";
         notice.style.display = "block";
+        notice.style.color = "var(--accent-purple)";
+        notice.innerHTML = "* Simulator Demo internal aktif (menghasilkan telemetri sintetis ke HiveMQ untuk presentasi).";
 
         let tick = 0;
         simInterval = setInterval(() => {
@@ -1460,7 +1485,8 @@
     // ========================================================
     function checkHeartbeatWatchdog() {
       const now = Date.now();
-      const TIMEOUT_MS = 3500; // Di atas 3.5 detik tanpa paket baru -> tandai offline/berhenti
+      let n1Offline = false;
+      let n2Offline = false;
 
       // Check Edge 1
       if (nodeState.node1.lastSeen) {
@@ -1468,12 +1494,15 @@
         const hb1 = document.getElementById("n1Heartbeat");
         const pill1 = document.getElementById("n1StatusPill");
         if (diffSec > 3) {
+          n1Offline = true;
           hb1.innerText = `🔴 Offline • ${diffSec}s lalu`;
           hb1.style.color = "var(--text-muted)";
           pill1.innerText = "STANDBY";
           pill1.style.color = "var(--text-muted)";
           pill1.style.borderColor = "var(--card-border)";
         }
+      } else {
+        n1Offline = true;
       }
 
       // Check Edge 2
@@ -1482,12 +1511,26 @@
         const hb2 = document.getElementById("n2Heartbeat");
         const pill2 = document.getElementById("n2StatusPill");
         if (diffSec > 3) {
+          n2Offline = true;
           hb2.innerText = `🔴 Offline • ${diffSec}s lalu`;
           hb2.style.color = "var(--text-muted)";
           pill2.innerText = "STANDBY";
           pill2.style.color = "var(--text-muted)";
           pill2.style.borderColor = "var(--card-border)";
         }
+      } else {
+        n2Offline = true;
+      }
+
+      // Jika KEDUA node offline dan tidak ada simulator demo berjalan, kembalikan Hero Banner ke Standby
+      if (n1Offline && n2Offline && !simInterval && (nodeState.node1.lastSeen || nodeState.node2.lastSeen)) {
+        const hero = document.getElementById("heroBanner");
+        const heroText = document.getElementById("heroStatusText");
+        const heroDesc = document.getElementById("heroDesc");
+        hero.className = "hero-banner border-cyan";
+        heroText.innerHTML = `<span>⏸️</span> <span style="color:var(--text-muted)">STANDBY — SENSOR OFFLINE</span>`;
+        heroDesc.innerText = "Tidak ada transmisi telemetri aktif dari sensor ruang kelas saat ini.";
+        document.getElementById("heroAvgDb").innerText = "--";
       }
     }
     setInterval(checkHeartbeatWatchdog, 1000);
