@@ -22,6 +22,20 @@
 
 ---
 
+## 🎬 3 PILIHAN SKENARIO MENJALANKAN DEMO SISTEM
+
+Pilih skenario yang paling cocok dengan kebutuhan penilaian atau presentasi:
+
+| Skenario Demo | Kapan Digunakan | Perangkat yang Dibutuhkan | Langkah Singkat |
+|:---|:---|:---|:---|
+| **Skenario 1 (Demo Kilat 1 Laptop)** | *Paling praktis* saat ditanya dosen atau demo cepat mandiri | 1 Laptop saja | Buka `dashboard/index.html` → Klik **"🚀 Mulai Simulator Demo"** di pojok kanan atas. |
+| **Skenario 2 (Realistis 2 Smartphone Fisik)** | Pembuktian nyata multi-node IoT sesuai spesifikasi rubric | 1 Laptop + 2 HP di 1 WiFi | Jalankan `python dashboard_server.py` → Buka Dashboard di Laptop & Web Mic di HP 1 & HP 2. |
+| **Skenario 3 (Hardware Virtual Wokwi + HP 2)** | Uji coba integrasi mikrokontroler ESP32 fisik virtual | 1 Laptop + 1 HP / Browser | Jalankan simulasi Wokwi ESP32 + Web Mic HP 2 + Dashboard. |
+
+> 📘 **Panduan Khusus Anggota 4**: Untuk checklist pengujian terpadu, template tabel pengujian untuk slide PPT, panduan screenshot, dan naskah perekaman video demo 3–5 menit, silakan buka: [**PANDUAN_PENGUJIAN_ANGGOTA4.md**](file:///d:/IOT%202/PANDUAN_PENGUJIAN_ANGGOTA4.md).
+
+---
+
 ## 🚀 PANDUAN CEPAT MENJALANKAN DASHBOARD & SISTEM (Tugas Anggota 3)
 
 ### 1. Instalasi Dependensi Python (Opsional untuk Server & Simulator)

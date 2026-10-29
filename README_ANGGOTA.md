@@ -81,9 +81,9 @@ IoT-Kebisingan-Kelas/
 
 ### 👤 Anggota 4 (Integrasi, Pengujian, PPT & Demo Video)
 - **Status: SIAP DILAKUKAN**
-- Menjalankan pengujian sistem secara holistik:
-  1. Jalankan `python dashboard_server.py` atau buka `dashboard/index.html`.
-  2. Buka `client_mobile_hp1/hp1_web_mic.html` di HP 1 (Depan) dan `client_mobile_hp2/hp2_web_mic.html` di HP 2 (Belakang), atau jalankan `python scripts/simulate_multi_node.py`.
-  3. Ambil tangkapan layar (screenshot) Dashboard saat kondisi Hening, Diskusi, dan Alarm.
-  4. Klik tombol **Export CSV** di Dashboard untuk mengunduh log insiden dan menyajikannya dalam tabel laporan PPT.
-  5. Merekam video demo singkat (screen recording simulasi Wokwi / Web Mic + respons real-time Dashboard).
+- **Panduan Operasional Lengkap**: Silakan baca dokumen panduan mandiri [**PANDUAN_PENGUJIAN_ANGGOTA4.md**](file:///d:/IOT%202/PANDUAN_PENGUJIAN_ANGGOTA4.md) yang mencakup:
+  1. Langkah pengujian end-to-end (3 skenario).
+  2. Template tabel data pengujian siap salin untuk slide PPT.
+  3. Checklist screenshot 4 kondisi akustik kelas.
+  4. Storyboard & naskah lengkap perekaman video demo (durasi 3–5 menit).
+  5. Prosedur export log alarm ke format spreadsheet (.CSV).
