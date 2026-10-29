@@ -70,6 +70,7 @@ void setup() {
   connectWiFi();
   mqttClient.setServer(MQTT_BROKER, MQTT_PORT);
   mqttClient.setCallback(mqttCallback);
+  mqttClient.setBufferSize(512); // Pastikan buffer muat payload JSON telemetri
 }
 
 void loop() {
@@ -120,14 +121,23 @@ void loop() {
     float rms = sqrt(sumSquareDiff / sampleCount);
     int peakToPeak = maxVal - minVal;
 
-    // Konversi RMS & Vpp ke estimasi desibel SPL (Sound Pressure Level)
-    // Formula kalibrasi desibel dari amplitudo ADC:
-    // dB = 20 * log10(RMS + 1) + Offset Kalibrasi (misal 32 dB untuk ambient noise terendah)
-    float calculatedDb = 20.0 * log10(rms + 1.0) + 32.0;
+    // Deteksi mode sensor:
+    // Pada simulasi Wokwi, potensiometer menghasilkan tegangan DC konstan (peakToPeak ~ 0).
+    // Oleh karena itu, kita petakan nilai tegangan ADC potensiometer (0 - 4095) langsung ke rentang 32 - 95 dB.
+    float calculatedDb;
+    if (peakToPeak < 15) {
+      float potRatio = meanBias / 4095.0f;
+      calculatedDb = 32.0f + (potRatio * 63.0f); // 32 dB (hening) s.d. 95 dB (sangat bising)
+      rms = potRatio * 0.12f;
+      peakToPeak = (int)(potRatio * 4095.0f);
+    } else {
+      // Jika mikrofon AC riil (ada gelombang audio naik-turun)
+      calculatedDb = 20.0f * log10(rms + 1.0f) + 32.0f;
+    }
 
     // Batasi dalam rentang realistis kebisingan ruangan (30 s.d. 100 dB)
-    if (calculatedDb < 30.0) calculatedDb = 30.0;
-    if (calculatedDb > 100.0) calculatedDb = 100.0;
+    if (calculatedDb < 30.0f) calculatedDb = 30.0f;
+    if (calculatedDb > 100.0f) calculatedDb = 100.0f;
 
     // ----------------------------------------------------
     // DATA PROCESSING 2: MOVING AVERAGE & KLASIFIKASI STATUS
@@ -159,10 +169,13 @@ void loop() {
     serializeJson(doc, jsonBuffer);
 
     // Publish data utama ke broker
-    mqttClient.publish(TOPIC_TELEMETRY, jsonBuffer);
+    bool pubOk = mqttClient.publish(TOPIC_TELEMETRY, jsonBuffer);
+    if (!pubOk) {
+      Serial.println("[MQTT ERR] Gagal publish telemetri! Coba hubungkan ulang...");
+    }
 
     // Tampilkan di Serial Monitor
-    Serial.printf("[TELEMETRY] dB: %.1f | RMS: %.2f | Vpp: %d | Status: %s | Alarm: %s\n",
+    Serial.printf("[TELEMETRY] dB: %.1f | RMS: %.2f | Vpp: %d | Status: %s | Alarm: %s\r\n",
                   dbSmooth, rms, peakToPeak, noiseStatus.c_str(), isAlarm ? "YES" : "NO");
 
     // Jika terjadi alarm kebisingan, kirim pesan prioritas ke topik alert
@@ -191,33 +204,43 @@ float calculateMovingAverage(float newSample) {
   return (sum / MA_SIZE);
 }
 
+bool buzzerIsActive = false;
+
+void setBuzzerState(bool active) {
+  if (active && !buzzerMuted) {
+    if (!buzzerIsActive) {
+      tone(PIN_BUZZER, 1800); // 1.8 kHz nada alarm nyaring di Wokwi
+      buzzerIsActive = true;
+    }
+  } else {
+    if (buzzerIsActive) {
+      noTone(PIN_BUZZER);
+      buzzerIsActive = false;
+    }
+    digitalWrite(PIN_BUZZER, LOW);
+  }
+}
+
 // Logika aktuator lokal (LED & Buzzer) berdasarkan status kebisingan
 void processNoiseActuation(float db, String& status, bool& isAlarm) {
   if (db < 55.0) {
     status = "SANGAT TENANG";
     digitalWrite(PIN_LED_NORMAL, HIGH);
     digitalWrite(PIN_LED_ALERT, LOW);
-    digitalWrite(PIN_BUZZER, LOW);
+    setBuzzerState(false);
     isAlarm = false;
   } else if (db < thresholdDb) {
     status = "KONDUSIF";
     digitalWrite(PIN_LED_NORMAL, HIGH);
     digitalWrite(PIN_LED_ALERT, LOW);
-    digitalWrite(PIN_BUZZER, LOW);
+    setBuzzerState(false);
     isAlarm = false;
-  } else if (db < thresholdDb + 8.0) {
-    status = "RAMAI / PERINGATAN";
-    digitalWrite(PIN_LED_NORMAL, LOW);
-    digitalWrite(PIN_LED_ALERT, HIGH);
-    digitalWrite(PIN_BUZZER, LOW);
-    isAlarm = true;
   } else {
+    // Kebisingan melampaui batas ambang (thresholdDb) -> Alarm langsung aktif
     status = "SANGAT BISING";
     digitalWrite(PIN_LED_NORMAL, LOW);
     digitalWrite(PIN_LED_ALERT, HIGH);
-    if (!buzzerMuted) {
-      digitalWrite(PIN_BUZZER, HIGH);
-    }
+    setBuzzerState(true);
     isAlarm = true;
   }
 }
@@ -230,7 +253,7 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   }
   message[length] = '\0';
 
-  Serial.printf("[MQTT CMD] Topik: %s | Pesan: %s\n", topic, message);
+  Serial.printf("[MQTT CMD] Topik: %s | Pesan: %s\r\n", topic, message);
 
   // Parsing perintah JSON atau text
   // Contoh: {"set_threshold": 80.0} atau {"mute": true}
@@ -239,12 +262,14 @@ void mqttCallback(char* topic, byte* payload, unsigned int length) {
   if (!error) {
     if (cmdDoc["set_threshold"].is<float>()) {
       thresholdDb = cmdDoc["set_threshold"];
-      Serial.printf("[CONFIG] Threshold kebisingan diubah ke: %.1f dB\n", thresholdDb);
+      Serial.printf("[CONFIG] Threshold kebisingan diubah ke: %.1f dB\r\n", thresholdDb);
     }
     if (cmdDoc["mute"].is<bool>()) {
       buzzerMuted = cmdDoc["mute"];
-      if (buzzerMuted) digitalWrite(PIN_BUZZER, LOW);
-      Serial.printf("[CONFIG] Buzzer mute set: %s\n", buzzerMuted ? "TRUE" : "FALSE");
+      if (buzzerMuted) {
+        setBuzzerState(false);
+      }
+      Serial.printf("[CONFIG] Buzzer mute set: %s\r\n", buzzerMuted ? "TRUE" : "FALSE");
     }
   }
 }
@@ -273,7 +298,7 @@ void connectMQTT() {
   if (mqttClient.connect(clientId.c_str())) {
     Serial.println(" TERHUBUNG!");
     mqttClient.subscribe(TOPIC_CONTROL);
-    Serial.printf("Subscribed ke topik: %s\n", TOPIC_CONTROL);
+    Serial.printf("Subscribed ke topik: %s\r\n", TOPIC_CONTROL);
   } else {
     Serial.print(" Gagal, rc=");
     Serial.print(mqttClient.state());

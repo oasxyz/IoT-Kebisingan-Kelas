@@ -67,13 +67,56 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(REPO_ROOT), **kwargs)
 
     def do_GET(self):
-        if self.path in ("/", "/dashboard", "/dashboard/"):
+        clean_path = self.path.split("?")[0].rstrip("/")
+        clean_lower = clean_path.lower()
+
+        if clean_lower in ("", "/", "/dashboard"):
             self.path = "/dashboard/index.html"
+        elif clean_lower in ("/hp1", "/hp-1", "/node1", "/client_mobile_hp1", "/client_mobile_hp1/hp1", "/client_mobile_hp1/hp1_web_mic"):
+            self.path = "/client_mobile_hp1/hp1_web_mic.html"
+        elif clean_lower in ("/hp2", "/hp-2", "/node2", "/client_mobile_hp2", "/client_mobile_hp2/hp2", "/client_mobile_hp2/hp2_web_mic"):
+            self.path = "/client_mobile_hp2/hp2_web_mic.html"
         elif self.path == "/favicon.ico":
-            # Beri respon 204 (No Content) langsung agar browser tidak error 404
             self.send_response(204)
             self.end_headers()
             return
+        else:
+            target_file = REPO_ROOT / self.path.lstrip("/\\")
+            if not target_file.exists():
+                menu_html = '''<!DOCTYPE html>
+<html lang="id">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Pilih Halaman IoT</title>
+<style>
+  body { background: #0f172a; color: #f8fafc; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; text-align: center; padding: 40px 16px; margin: 0; }
+  .card { max-width: 420px; margin: 0 auto; background: #1e293b; border: 1px solid #334155; border-radius: 20px; padding: 28px 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); }
+  h1 { font-size: 22px; color: #38bdf8; margin: 0 0 10px; }
+  p { color: #94a3b8; font-size: 14px; margin-bottom: 24px; }
+  .btn { display: block; padding: 16px; margin: 12px 0; border-radius: 12px; font-weight: bold; font-size: 16px; text-decoration: none; color: #fff; }
+  .btn-hp1 { background: #0284c7; }
+  .btn-hp2 { background: #7c3aed; }
+  .btn-dash { background: #059669; }
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>📡 Pilih Halaman IoT</h1>
+  <p>Alamat tidak ditemukan. Silakan pilih tombol di bawah:</p>
+  <a class="btn btn-hp1" href="/hp1">📱 Buka HP 1 (Depan - RMS)</a>
+  <a class="btn btn-hp2" href="/hp2">📱 Buka HP 2 (Belakang - AI Vokal)</a>
+  <a class="btn btn-dash" href="/dashboard">📊 Buka Web Dashboard Utama</a>
+</div>
+</body>
+</html>'''
+                encoded = menu_html.encode("utf-8")
+                self.send_response(200)
+                self.send_header("Content-Type", "text/html; charset=utf-8")
+                self.send_header("Content-Length", str(len(encoded)))
+                self.end_headers()
+                self.wfile.write(encoded)
+                return
+
         return super().do_GET()
 
     def log_message(self, format, *args):
@@ -209,8 +252,8 @@ def run_server(port: int = 8000, enable_mqtt: bool = True):
     print(f"  👉 Jaringan WiFi/LAN: http://{local_ip}:{port}/dashboard/index.html")
     print("-" * 70)
     print(f"  Akses Web Edge Microphone (Buka dari Chrome Smartphone):")
-    print(f"  📱 HP 1 (Depan)    : http://{local_ip}:{port}/client_mobile_hp1/hp1_web_mic.html")
-    print(f"  📱 HP 2 (Belakang) : http://{local_ip}:{port}/client_mobile_hp2/hp2_web_mic.html")
+    print(f"  📱 HP 1 (Depan)    : http://{local_ip}:{port}/hp1  (atau /client_mobile_hp1/hp1_web_mic.html)")
+    print(f"  📱 HP 2 (Belakang) : http://{local_ip}:{port}/hp2  (atau /client_mobile_hp2/hp2_web_mic.html)")
     print("-" * 70)
     print("  💡 Tips Akses Mikrofon Smartphone (Web Audio API):")
     print("     1. Gunakan tombol 'Simulasi' yang tersedia langsung di layar HP; ATAU")

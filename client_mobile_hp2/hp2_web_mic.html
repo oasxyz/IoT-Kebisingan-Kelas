@@ -543,7 +543,7 @@
         <span>MQTT Broker: broker.hivemq.com</span>
         <div class="mqtt-indicator">
           <span class="mqtt-dot" id="mqttDot"></span>
-          <span id="mqttStatusText">Terputus</span>
+          <span id="mqttStatusText" style="color: #38bdf8;">Menghubungkan ke Broker...</span>
         </div>
       </div>
 
@@ -615,14 +615,22 @@
     // ==========================================
     // MQTT CLIENT INITIALIZATION
     // ==========================================
+    let isConnectingMqtt = false;
     function connectMqtt() {
+      if (isConnectingMqtt || (mqttClient && mqttClient.isConnected())) {
+        return;
+      }
+      isConnectingMqtt = true;
+      const uniqueId = "HP2_Edge_" + Math.random().toString(16).substr(2, 6) + "_" + Date.now().toString(36);
       log(`Menghubungkan ke broker MQTT ${BROKER_HOST}:${BROKER_PORT}...`, "accent");
-      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, "/mqtt", CLIENT_ID);
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, "/mqtt", uniqueId);
 
       mqttClient.onConnectionLost = (resp) => {
+        isConnectingMqtt = false;
         mqttDot.className = "mqtt-dot mqtt-disconnected";
-        mqttStatusText.innerText = "Terputus";
-        log(`Koneksi MQTT terputus: ${resp.errorMessage}`, "alert");
+        mqttStatusText.innerText = "Terputus. Mencoba reconnect...";
+        log(`Koneksi MQTT terputus: ${resp.errorMessage}. Menghubungkan ulang...`, "alert");
+        setTimeout(connectMqtt, 3000);
       };
 
       mqttClient.onMessageArrived = (message) => {
@@ -647,6 +655,7 @@
         timeout: 5,
         keepAliveInterval: 30,
         onSuccess: () => {
+          isConnectingMqtt = false;
           mqttDot.className = "mqtt-dot mqtt-connected";
           mqttStatusText.innerText = "Terhubung (HiveMQ)";
           mqttClient.subscribe(TOPIC_CONTROL);
@@ -654,9 +663,11 @@
           log(`MQTT Terhubung! Subscribed ke: ${TOPIC_CONTROL}`, "success");
         },
         onFailure: (err) => {
+          isConnectingMqtt = false;
           mqttDot.className = "mqtt-dot mqtt-disconnected";
-          mqttStatusText.innerText = "Gagal Konek";
+          mqttStatusText.innerText = "Gagal Konek. Coba lagi...";
           log(`Gagal konek MQTT: ${err.errorMessage}`, "alert");
+          setTimeout(connectMqtt, 4000);
         }
       });
     }
@@ -1006,11 +1017,20 @@
       if (isRunning && mode !== 'live' && microphoneStream) {
         microphoneStream.getTracks().forEach(t => t.stop());
       }
+      // Auto start jika tombol simulasi diklik
+      if (!isRunning && mode !== 'live') {
+        startAudioEngine();
+      }
     }
 
     // Auto-init visualizer background
     canvasCtx.fillStyle = '#1e293b';
     canvasCtx.fillRect(0, canvas.height - 4, canvas.width, 4);
+  </script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      connectMqtt();
+    });
   </script>
 </body>
 </html>

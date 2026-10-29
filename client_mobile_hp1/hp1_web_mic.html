@@ -52,7 +52,7 @@
       <button class="sim-btn" id="simLoud" onclick="setMode('loud')">Sim: Bising</button>
     </div>
 
-    <p class="status-text" id="mqttStatus">Status MQTT: Terputus</p>
+    <p class="status-text" id="mqttStatus" style="color: #38bdf8;">Status MQTT: Menghubungkan ke Broker...</p>
 
     <div class="log-box" id="logBox">
       [System] Buka halaman ini di HP Android untuk izin akses mikrofon & kirim telemetry MQTT.
@@ -70,6 +70,11 @@
       const el = document.getElementById(idMap[mode]);
       if (el) el.classList.add('active');
       log(`Mode HP 1 diubah ke: ${mode}`);
+
+      // Auto start jika tombol simulasi diklik
+      if (!isRunning && mode !== 'live') {
+        toggleMic();
+      }
     }
     let audioContext = null;
     let analyser = null;
@@ -96,13 +101,21 @@
       box.scrollTop = box.scrollHeight;
     }
 
+    let isConnectingMqtt = false;
     function initMqtt() {
+      if (isConnectingMqtt || (mqttClient && mqttClient.isConnected())) {
+        return;
+      }
+      isConnectingMqtt = true;
+      const uniqueId = "HP1_Edge_" + Math.random().toString(16).substr(2, 6) + "_" + Date.now().toString(36);
       log(`Menghubungkan MQTT ke ${BROKER_HOST}:${BROKER_PORT}...`);
-      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, "/mqtt", CLIENT_ID);
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, "/mqtt", uniqueId);
 
       mqttClient.onConnectionLost = (resp) => {
-        document.getElementById("mqttStatus").innerText = "Status MQTT: Terputus (" + resp.errorMessage + ")";
+        isConnectingMqtt = false;
+        document.getElementById("mqttStatus").innerText = "Status MQTT: Terputus. Menghubungkan ulang...";
         document.getElementById("mqttStatus").style.color = "#f87171";
+        setTimeout(initMqtt, 3000);
       };
 
       mqttClient.onMessageArrived = (message) => {
@@ -125,6 +138,7 @@
         timeout: 5,
         keepAliveInterval: 30,
         onSuccess: () => {
+          isConnectingMqtt = false;
           document.getElementById("mqttStatus").innerText = "Status MQTT: Terhubung ke Broker (HiveMQ)";
           document.getElementById("mqttStatus").style.color = "#4ade80";
           mqttClient.subscribe(TOPIC_CONTROL);
@@ -132,9 +146,11 @@
           log("MQTT Terhubung! Subscribed ke: " + TOPIC_CONTROL);
         },
         onFailure: (err) => {
+          isConnectingMqtt = false;
           document.getElementById("mqttStatus").innerText = "Gagal konek MQTT: " + err.errorMessage;
           document.getElementById("mqttStatus").style.color = "#f87171";
           log("Gagal konek MQTT: " + err.errorMessage);
+          setTimeout(initMqtt, 4000);
         }
       });
     }
@@ -302,6 +318,11 @@
         log(`Sent MQTT: ${payload.db} dB | ${payload.status}`);
       }
     }
+  </script>
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      initMqtt();
+    });
   </script>
 </body>
 </html>

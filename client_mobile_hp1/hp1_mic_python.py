@@ -39,7 +39,10 @@ def main():
     print(" EDGE DEVICE HP 1 - AUDIO RMS TO MQTT ")
     print("==========================================")
 
-    client = mqtt.Client()
+    try:
+        client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id='HP_01_Python')
+    except AttributeError:
+        client = mqtt.Client(client_id='HP_01_Python')
     try:
         client.connect(MQTT_BROKER, MQTT_PORT, 60)
         client.loop_start()
