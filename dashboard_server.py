@@ -67,15 +67,27 @@ class CustomHTTPRequestHandler(http.server.SimpleHTTPRequestHandler):
         super().__init__(*args, directory=str(REPO_ROOT), **kwargs)
 
     def do_GET(self):
-        if self.path == "/" or self.path == "/dashboard":
+        if self.path in ("/", "/dashboard", "/dashboard/"):
             self.path = "/dashboard/index.html"
+        elif self.path == "/favicon.ico":
+            # Beri respon 204 (No Content) langsung agar browser tidak error 404
+            self.send_response(204)
+            self.end_headers()
+            return
         return super().do_GET()
 
     def log_message(self, format, *args):
-        # Sembunyikan log polling HTTP standar agar terminal tetap bersih
-        if "200 -" in args[0] or "304 -" in args[0]:
-            return
-        super().log_message(format, *args)
+        # Format pesan log secara aman untuk semua tipe request (string maupun HTTPStatus)
+        try:
+            msg = format % args
+            # Sembunyikan log sukses 200 / 304 / 204 agar terminal tetap rapi
+            if any(code in msg for code in (" 200 ", " 304 ", " 204 ", "200 -", "304 -", "204 -")):
+                return
+            if "favicon.ico" in msg:
+                return
+            sys.stderr.write(f"[{self.log_date_time_string()}] {msg}\n")
+        except Exception:
+            pass
 
 
 class MqttRoomFusionWorker:
