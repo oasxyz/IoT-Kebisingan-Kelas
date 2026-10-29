@@ -3,8 +3,8 @@
 Sistem Pemantau Kebisingan Ruang Kelas (IoT) - Edge Device HP 2 (Node 2)
 Fokus: Klasifikasi Khusus Kebisingan Saat Mengobrol (Classroom Chatter Noise)
 =============================================================================
-Peran: Anggota 2 (Edge HP 2 / Node 2 Belakang Kelas & Algoritma Klasifikasi)
-Format: Kompatibel dengan format HP 1 dan kontrak telemetri tim.
+Komponen: Edge Node 2 (Zona Belakang Kelas - Deteksi Obrolan & Analisis Spektral)
+Format: Kompatibel dengan format telemetri sistem.
 =============================================================================
 """
 
@@ -222,7 +222,7 @@ def main():
 
     print("==================================================================")
     print(" [NODE 2 / HP 2] KLASIFIKASI KEBISINGAN OBROLAN RUANG KELAS       ")
-    print(" Proyek: Pemantau Kebisingan Ruang Kelas (IoT - Anggota 2)       ")
+    print(" Proyek: Pemantau Kebisingan Ruang Kelas (Edge Node 2)          ")
     print("==================================================================")
     print(f" [*] Device ID    : {DEVICE_ID} ({DEVICE_NAME})")
     print(f" [*] Lokasi       : {LOCATION}")
