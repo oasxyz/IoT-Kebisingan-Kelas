@@ -29,7 +29,7 @@ Pilih skenario yang paling cocok dengan kebutuhan penilaian atau presentasi:
 | Skenario Demo | Kapan Digunakan | Perangkat yang Dibutuhkan | Langkah Singkat |
 |:---|:---|:---|:---|
 | **Skenario 1 (Demo Kilat 1 Laptop)** | *Paling praktis* saat ditanya dosen atau demo cepat mandiri | 1 Laptop saja | Buka `dashboard/index.html` → Klik **"🚀 Mulai Simulator Demo"** di pojok kanan atas. |
-| **Skenario 2 (Realistis 2 Smartphone Fisik)** | Pembuktian nyata multi-node IoT sesuai spesifikasi rubric | 1 Laptop + 2 HP di 1 WiFi | Jalankan `python dashboard_server.py` → Buka Dashboard di Laptop & Web Mic di HP 1 & HP 2. |
+| **Skenario 2 (Realistis 2 Smartphone Fisik)** | Pembuktian nyata multi-node IoT sesuai spesifikasi rubric | 1 Laptop + 2 HP di 1 WiFi | Jalankan `python dashboard_server.py` → Buka Dashboard di Laptop & Web Mic di HP 1 & HP 2 (*lihat trik izin mikrofon di Bagian 2*). |
 | **Skenario 3 (Hardware Virtual Wokwi + HP 2)** | Uji coba integrasi mikrokontroler ESP32 fisik virtual | 1 Laptop + 1 HP / Browser | Jalankan simulasi Wokwi ESP32 + Web Mic HP 2 + Dashboard. |
 
 > 📘 **Panduan Khusus Anggota 4**: Untuk checklist pengujian terpadu, template tabel pengujian untuk slide PPT, panduan screenshot, dan naskah perekaman video demo 3–5 menit, silakan buka: [**PANDUAN_PENGUJIAN_ANGGOTA4.md**](file:///d:/IOT%202/PANDUAN_PENGUJIAN_ANGGOTA4.md).
@@ -56,6 +56,23 @@ Terminal akan menampilkan URL akses:
 - **Web Dashboard (Laptop/PC)**: `http://localhost:8000/dashboard/index.html`
 - **Web Edge HP 1 (Smartphone 1)**: `http://<IP_LAPTOP>:8000/client_mobile_hp1/hp1_web_mic.html`
 - **Web Edge HP 2 (Smartphone 2)**: `http://<IP_LAPTOP>:8000/client_mobile_hp2/hp2_web_mic.html`
+
+> [!IMPORTANT]
+> **Catatan Penting Akses Mikrofon Smartphone di Jaringan LAN (Web Audio API):**  
+> Sesuai standar keamanan browser modern (W3C Secure Context), Google Chrome di smartphone secara default membatasi akses mikrofon fisik pada koneksi HTTP alamat IP lokal (`Cannot read properties of undefined (reading 'getUserMedia')`). Terdapat 2 opsi solusi mudah:
+> 
+> 1. **Solusi 1 (Paling Cepat / Tanpa Ubah Pengaturan Browser):**  
+>    Cukup gunakan tombol **Simulasi** bawaan yang ada di layar HP (`Sim: Dosen` di HP 1, atau `Sim: Obrolan` di HP 2). Data telemetri akan langsung terkirim ke broker MQTT dan grafik Dashboard bergerak secara live.
+> 
+> 2. **Solusi 2 (Mengaktifkan Mikrofon Fisik Asli HP Membaca Suara Nyata — 30 Detik):**  
+>    Izinkan IP server LAN laptop sebagai *Secure Origin* langsung di Google Chrome smartphone:
+>    1. Buka browser **Google Chrome** di smartphone.
+>    2. Ketik di bilah alamat (URL): `chrome://flags` lalu tekan Enter.
+>    3. Di kolom pencarian (*Search flags*), cari: `unsafely-treat-insecure-origin-as-secure`.
+>    4. Masukkan alamat IP dan port server laptop Anda, contoh: `http://192.168.1.26:8000`.
+>    5. Ubah opsi dari *Disabled* menjadi **Enabled**.
+>    6. Ketuk tombol biru **Relaunch** di pojok kanan bawah Chrome smartphone.
+>    7. Buka kembali halaman Web Mic di HP $\to$ pop-up izin mikrofon fisik asli HP langsung muncul dan aktif 100%!
 
 #### Opsi B (Buka Langsung File HTML):
 Cukup klik ganda (double click) file `dashboard/index.html` di File Explorer untuk membukanya di browser Google Chrome / Edge. Dashboard langsung terkoneksi ke Cloud HiveMQ via Secure WebSocket SSL (`wss://broker.hivemq.com:8884/mqtt`).
