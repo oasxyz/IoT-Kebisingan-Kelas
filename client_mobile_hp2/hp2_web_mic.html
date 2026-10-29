@@ -566,11 +566,11 @@
     // ==========================================
     const BROKER_HOST = "broker.hivemq.com";
     const BROKER_PORT = 8884; // WebSocket SSL port for HiveMQ
-    const TOPIC_TELEMETRY = "kelas/kebisingan/node2/telemetry";
-    const TOPIC_TELEMETRY_HP2 = "kelas/kebisingan/hp2/telemetry";
-    const TOPIC_ALERT = "kelas/kebisingan/node2/alert";
-    const TOPIC_CONTROL = "kelas/kebisingan/node2/control";
-    const TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control";
+    const TOPIC_TELEMETRY = "if/kebisingan/kelas/node2/telemetry";
+    const TOPIC_TELEMETRY_HP2 = "if/kebisingan/kelas/hp2/telemetry";
+    const TOPIC_ALERT = "if/kebisingan/kelas/node2/alert";
+    const TOPIC_CONTROL = "if/kebisingan/kelas/node2/control";
+    const TOPIC_GLOBAL_CONTROL = "if/kebisingan/kelas/control";
     const CLIENT_ID = "HP2_WebEdge_" + Math.random().toString(16).substr(2, 8);
     let THRESHOLD_CHATTER_DB = 75.0;
     let isMuted = false;
@@ -678,6 +678,7 @@
     async function toggleAudioEngine() {
       if (!isRunning) {
         startAudioEngine();
+
       } else {
         stopAudioEngine();
       }
@@ -722,8 +723,8 @@
       } catch (err) {
         alert("Gagal mengakses mikrofon: " + err.message + "\nSilakan gunakan tombol simulasi jika izin ditolak.");
         log(`Error mikrofon: ${err.message}`, "alert");
-        setMode('talk');
-        startAudioEngine();
+        stopAudioEngine();
+
       }
     }
 
@@ -1020,6 +1021,7 @@
       // Auto start jika tombol simulasi diklik
       if (!isRunning && mode !== 'live') {
         startAudioEngine();
+
       }
     }
 

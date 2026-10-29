@@ -232,7 +232,7 @@
     /* Grid Kartu Edge Nodes */
     .nodes-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      grid-template-columns: 1fr 1fr;
       gap: 20px;
     }
 
@@ -599,6 +599,12 @@
       font-weight: 600;
     }
 
+    @media (max-width: 600px) {
+      .nodes-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
     /* Footer */
     footer {
       text-align: center;
@@ -628,6 +634,9 @@
         </div>
         <div class="status-badge">
           <span>Paket: <strong id="packetCount" style="color:var(--accent-cyan)">0</strong></span>
+        </div>
+        <button class="status-badge" onclick="testAlarmSound()" style="cursor:pointer; color:var(--accent-cyan); border-color:var(--accent-cyan); background:rgba(6,182,212,0.12);" title="Uji suara sirine alarm di speaker laptop">
+          <span>🔊 Test Sirine</span>
         </div>
         <div class="status-badge" id="muteIndicatorBadge" style="display:none; color:var(--accent-rose); border-color:var(--accent-rose);">
           <span>🔇 BUZZER MUTED</span>
@@ -851,12 +860,12 @@
     const CLIENT_ID = "Dashboard_Kelompok7_" + Math.random().toString(16).substr(2, 8);
 
     // Topik-topik Standar
-    const TOPIC_SUBSCRIBE_TELEMETRY = "kelas/kebisingan/+/telemetry";
-    const TOPIC_SUBSCRIBE_ALERT = "kelas/kebisingan/+/alert";
-    const TOPIC_SUBSCRIBE_ROOM = "kelas/kebisingan/room/status";
-    const TOPIC_NODE1_CONTROL = "kelas/kebisingan/node1/control";
-    const TOPIC_NODE2_CONTROL = "kelas/kebisingan/node2/control";
-    const TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control";
+    const TOPIC_SUBSCRIBE_TELEMETRY = "if/kebisingan/kelas/+/telemetry";
+    const TOPIC_SUBSCRIBE_ALERT = "if/kebisingan/kelas/+/alert";
+    const TOPIC_SUBSCRIBE_ROOM = "if/kebisingan/kelas/room/status";
+    const TOPIC_NODE1_CONTROL = "if/kebisingan/kelas/node1/control";
+    const TOPIC_NODE2_CONTROL = "if/kebisingan/kelas/node2/control";
+    const TOPIC_GLOBAL_CONTROL = "if/kebisingan/kelas/control";
 
     // State Internal Dashboard
     let mqttClient = null;
@@ -864,6 +873,72 @@
     let currentThreshold = 75.0;
     let isMuted = false;
     let simInterval = null;
+
+    // Web Audio Synthesizer untuk Sirine Alarm Laptop (Stage 1)
+    let audioCtx = null;
+    let alarmInterval = null;
+    let isAlarmSounding = false;
+
+    function initAudioContext() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx && audioCtx.state === "suspended") {
+        audioCtx.resume();
+      }
+    }
+
+    function playAlarmBeep() {
+      try {
+        initAudioContext();
+        if (!audioCtx || isMuted) return;
+
+        const now = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+
+        // Nada sirine tajam khas alarm darurat (880 Hz naik ke 1400 Hz)
+        osc.type = "sawtooth";
+        osc.frequency.setValueAtTime(880, now);
+        osc.frequency.exponentialRampToValueAtTime(1400, now + 0.16);
+
+        gain.gain.setValueAtTime(0.20, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+
+        osc.start(now);
+        osc.stop(now + 0.23);
+      } catch (e) {
+        console.warn("Audio alarm playback error:", e);
+      }
+    }
+
+    function startAlarmSound() {
+      if (isAlarmSounding || isMuted) return;
+      isAlarmSounding = true;
+      initAudioContext();
+      playAlarmBeep();
+      if (!alarmInterval) {
+        alarmInterval = setInterval(playAlarmBeep, 450); // Beep setiap 450ms
+      }
+    }
+
+    function stopAlarmSound() {
+      isAlarmSounding = false;
+      if (alarmInterval) {
+        clearInterval(alarmInterval);
+        alarmInterval = null;
+      }
+    }
+
+    function testAlarmSound() {
+      initAudioContext();
+      playAlarmBeep();
+      setTimeout(playAlarmBeep, 250);
+      setTimeout(playAlarmBeep, 500);
+    }
 
     // Data Per Node (Ternormalisasi)
     const nodeState = {
@@ -1080,10 +1155,13 @@
       const isAlarm = (n1.db >= currentThreshold) || (n2.db >= currentThreshold) || (n2.classification === "OBROLAN_GADUH");
 
       if (isAlarm) {
+        startAlarmSound();
         hero.className = "hero-banner border-rose";
         heroText.innerHTML = `<span>🚨</span> <span style="color:var(--accent-rose)">SANGAT BISING — ALARM KELAS AKTIF</span>`;
         heroDesc.innerText = `Tingkat kebisingan melampaui batas aman (${currentThreshold} dB)! Harap kondusifkan ruang kelas.`;
-      } else if (n2.chatter_prob >= 50 && n2.db >= 62.0) {
+      } else {
+        stopAlarmSound();
+        if (n2.chatter_prob >= 50 && n2.db >= 62.0) {
         hero.className = "hero-banner border-amber";
         heroText.innerHTML = `<span>🗣️</span> <span style="color:var(--accent-amber)">PERINGATAN — OBROLAN SISWA TERDETEKSI</span>`;
         heroDesc.innerText = `Terdeteksi aktivitas obrolan di bagian belakang kelas (Probabilitas Obrolan: ${n2.chatter_prob}%). Pantau agar tidak mengganggu.`;
@@ -1095,6 +1173,7 @@
         hero.className = "hero-banner border-cyan";
         heroText.innerHTML = `<span>✅</span> <span style="color:var(--accent-cyan)">KONDUSIF — PEMBELAJARAN BERLANGSUNG</span>`;
         heroDesc.innerText = "Tingkat suara berada dalam batas wajar aktivitas pembelajaran di ruang kelas.";
+      }
       }
     }
 
@@ -1289,6 +1368,7 @@
       const badge = document.getElementById("muteIndicatorBadge");
 
       if (isMuted) {
+        stopAlarmSound();
         btn.className = "btn-action btn-mute is-muted";
         btnText.innerText = "Unmute Buzzer Alarm";
         badge.style.display = "inline-flex";
@@ -1468,11 +1548,11 @@
           // Kirim via MQTT jika terhubung
           if (mqttClient && mqttClient.isConnected()) {
             const m1 = new Paho.MQTT.Message(JSON.stringify(p1));
-            m1.destinationName = "kelas/kebisingan/node1/telemetry";
+            m1.destinationName = "if/kebisingan/kelas/node1/telemetry";
             mqttClient.send(m1);
 
             const m2 = new Paho.MQTT.Message(JSON.stringify(p2));
-            m2.destinationName = "kelas/kebisingan/node2/telemetry";
+            m2.destinationName = "if/kebisingan/kelas/node2/telemetry";
             mqttClient.send(m2);
           }
         }, 1000);
@@ -1500,6 +1580,9 @@
           pill1.innerText = "STANDBY";
           pill1.style.color = "var(--text-muted)";
           pill1.style.borderColor = "var(--card-border)";
+          document.getElementById("n1DbDisplay").innerHTML = `-- <span class="db-main-unit">dB</span>`;
+          document.getElementById("n1DbDisplay").style.color = "var(--text-muted)";
+          nodeState.node1.db = null;
         }
       } else {
         n1Offline = true;
@@ -1517,6 +1600,12 @@
           pill2.innerText = "STANDBY";
           pill2.style.color = "var(--text-muted)";
           pill2.style.borderColor = "var(--card-border)";
+          document.getElementById("n2DbDisplay").innerHTML = `-- <span class="db-main-unit">dB</span>`;
+          document.getElementById("n2DbDisplay").style.color = "var(--text-muted)";
+          document.getElementById("n2Category").innerText = "STANDBY";
+          document.getElementById("n2ChatterProb").innerText = "0%";
+          document.getElementById("n2ProbBar").style.width = "0%";
+          nodeState.node2.db = null;
         }
       } else {
         n2Offline = true;
@@ -1524,6 +1613,7 @@
 
       // Jika KEDUA node offline dan tidak ada simulator demo berjalan, kembalikan Hero Banner ke Standby
       if (n1Offline && n2Offline && !simInterval && (nodeState.node1.lastSeen || nodeState.node2.lastSeen)) {
+        stopAlarmSound();
         const hero = document.getElementById("heroBanner");
         const heroText = document.getElementById("heroStatusText");
         const heroDesc = document.getElementById("heroDesc");
@@ -1541,6 +1631,7 @@
         simInterval = null;
         document.getElementById("simBtnText").innerText = "Mulai Simulator Demo";
         document.getElementById("simNotice").style.display = "none";
+        stopAlarmSound();
       }
 
       // Reset state data

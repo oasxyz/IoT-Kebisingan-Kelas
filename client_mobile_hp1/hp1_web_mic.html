@@ -87,11 +87,11 @@
 
     const BROKER_HOST = "broker.hivemq.com";
     const BROKER_PORT = 8884; // WebSocket SSL port for HiveMQ
-    const TOPIC_TELEMETRY = "kelas/kebisingan/hp1/telemetry";
-    const TOPIC_TELEMETRY_NODE1 = "kelas/kebisingan/node1/telemetry";
-    const TOPIC_ALERT = "kelas/kebisingan/node1/alert";
-    const TOPIC_CONTROL = "kelas/kebisingan/node1/control";
-    const TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control";
+    const TOPIC_TELEMETRY = "if/kebisingan/kelas/hp1/telemetry";
+    const TOPIC_TELEMETRY_NODE1 = "if/kebisingan/kelas/node1/telemetry";
+    const TOPIC_ALERT = "if/kebisingan/kelas/node1/alert";
+    const TOPIC_CONTROL = "if/kebisingan/kelas/node1/control";
+    const TOPIC_GLOBAL_CONTROL = "if/kebisingan/kelas/control";
     const CLIENT_ID = "HP1_WebEdge_" + Math.random().toString(16).substr(2, 8);
 
     function log(msg) {
@@ -187,10 +187,10 @@
 
           intervalTimer = setInterval(processAudioAndPublish, 1000);
         } catch (err) {
-          alert("Gagal mengakses mikrofon: " + err.message + "\n\n💡 Otomatis dialihkan ke mode 'Sim: Dosen'.\n(Jika ingin menggunakan mic fisik asli, aktifkan 'chrome://flags/#unsafely-treat-insecure-origin-as-secure').");
+          alert("Izin mikrofon tidak aktif atau diblokir browser LAN:\n" + err.message + "\n\n💡 Silakan gunakan salah satu tombol 'Sim' di bawah jika ingin mencoba data simulasi.");
           log("Gagal mic: " + err.message + " -> Beralih ke simulasi Dosen.");
-          setMode('teach');
-          toggleMic();
+          stopMic();
+
         }
       } else {
         stopMic();

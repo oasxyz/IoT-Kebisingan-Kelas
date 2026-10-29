@@ -18,7 +18,7 @@ except ImportError:
 
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
-TOPIC_TELEMETRY = "kelas/kebisingan/hp1/telemetry"
+TOPIC_TELEMETRY = "if/kebisingan/kelas/hp1/telemetry"
 
 SAMPLE_RATE = 44100
 DURATION = 1.0 # baca tiap 1 detik

@@ -21,27 +21,27 @@ BROKER_WS_PATH = "/mqtt"
 BROKER_WSS_URL = f"wss://{BROKER_HOST}:{BROKER_WS_PORT}{BROKER_WS_PATH}"
 
 # ==========================================
-# STRUKTUR TOPIK MQTT STANDAR TIM
+# STRUKTUR TOPIK MQTT STANDAR TIM (ISOLASI TOPIK UNIK)
 # ==========================================
 # Telemetri
-TOPIC_NODE1_TELEMETRY = "kelas/kebisingan/node1/telemetry"
-TOPIC_HP1_TELEMETRY = "kelas/kebisingan/hp1/telemetry"
-TOPIC_NODE2_TELEMETRY = "kelas/kebisingan/node2/telemetry"
-TOPIC_HP2_TELEMETRY = "kelas/kebisingan/hp2/telemetry"
-TOPIC_TELEMETRY_WILDCARD = "kelas/kebisingan/+/telemetry"
+TOPIC_NODE1_TELEMETRY = "if/kebisingan/kelas/node1/telemetry"
+TOPIC_HP1_TELEMETRY = "if/kebisingan/kelas/hp1/telemetry"
+TOPIC_NODE2_TELEMETRY = "if/kebisingan/kelas/node2/telemetry"
+TOPIC_HP2_TELEMETRY = "if/kebisingan/kelas/hp2/telemetry"
+TOPIC_TELEMETRY_WILDCARD = "if/kebisingan/kelas/+/telemetry"
 
 # Alarm
-TOPIC_NODE1_ALERT = "kelas/kebisingan/node1/alert"
-TOPIC_NODE2_ALERT = "kelas/kebisingan/node2/alert"
-TOPIC_ALERT_WILDCARD = "kelas/kebisingan/+/alert"
+TOPIC_NODE1_ALERT = "if/kebisingan/kelas/node1/alert"
+TOPIC_NODE2_ALERT = "if/kebisingan/kelas/node2/alert"
+TOPIC_ALERT_WILDCARD = "if/kebisingan/kelas/+/alert"
 
 # Kontrol 2 Arah (Dashboard -> Edge Nodes)
-TOPIC_NODE1_CONTROL = "kelas/kebisingan/node1/control"
-TOPIC_NODE2_CONTROL = "kelas/kebisingan/node2/control"
-TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control"
+TOPIC_NODE1_CONTROL = "if/kebisingan/kelas/node1/control"
+TOPIC_NODE2_CONTROL = "if/kebisingan/kelas/node2/control"
+TOPIC_GLOBAL_CONTROL = "if/kebisingan/kelas/control"
 
 # Status Agregasi Ruangan (Room Fusion)
-TOPIC_ROOM_STATUS = "kelas/kebisingan/room/status"
+TOPIC_ROOM_STATUS = "if/kebisingan/kelas/room/status"
 
 # Default ambang kebisingan (dB SPL)
 DEFAULT_THRESHOLD_DB = 75.0
@@ -197,7 +197,7 @@ def normalize_telemetry(topic: str, raw_input: Union[Dict[str, Any], str, bytes]
 class TelemetryDeduplicator:
     """
     Menyaring pesan kembar dari Edge 2 yang mem-publish JSON identik
-    ke kedua topik sekaligus ('kelas/kebisingan/node2/telemetry' dan 'kelas/kebisingan/hp2/telemetry').
+    ke kedua topik sekaligus ('if/kebisingan/kelas/node2/telemetry' dan 'if/kebisingan/kelas/hp2/telemetry').
     """
 
     def __init__(self, window_seconds: float = 0.40):

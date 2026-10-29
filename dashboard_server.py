@@ -33,6 +33,7 @@ from shared.mqtt_contract import (
     BROKER_HOST,
     BROKER_TCP_PORT,
     TOPIC_ALERT_WILDCARD,
+    TOPIC_GLOBAL_CONTROL,
     TOPIC_ROOM_STATUS,
     TOPIC_TELEMETRY_WILDCARD,
     NormalizedTelemetry,
@@ -178,8 +179,8 @@ class MqttRoomFusionWorker:
             client.subscribe([
                 (TOPIC_TELEMETRY_WILDCARD, 0),
                 (TOPIC_ALERT_WILDCARD, 0),
-                ("kelas/kebisingan/+/control", 0),
-                ("kelas/kebisingan/control", 0),
+                ("if/kebisingan/kelas/+/control", 0),
+                ("if/kebisingan/kelas/control", 0),
             ])
             print(f"[MQTT SERVICE] Subscribed ke telemetri, alert, dan kontrol ({TOPIC_TELEMETRY_WILDCARD})")
 

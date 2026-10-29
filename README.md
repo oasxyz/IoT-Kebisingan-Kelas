@@ -106,11 +106,11 @@ Sistem menerapkan prinsip **"Kirim Hasil, Bukan Data Mentah"**. Perangkat edge t
 
 | Arah Komunikasi | Topik MQTT | Keterangan |
 | :--- | :--- | :--- |
-| **Edge 1 $\to$ Cloud** | `kelas/kebisingan/node1/telemetry`<br>`kelas/kebisingan/hp1/telemetry` | Telemetri level desibel & moving average zona depan |
-| **Edge 2 $\to$ Cloud** | `kelas/kebisingan/node2/telemetry`<br>`kelas/kebisingan/hp2/telemetry` | Telemetri FFT pita vokal & klasifikasi obrolan belakang |
-| **Edge $\to$ Cloud** | `kelas/kebisingan/+/alert` | Notifikasi darurat saat kebisingan melampaui ambang batas |
-| **Dashboard $\to$ Edge** | `kelas/kebisingan/control` | Perintah pengaturan ambang batas (`set_threshold`) & `mute` |
-| **Aggregator $\to$ Cloud** | `kelas/kebisingan/room/status` | Status terpadu hasil Classroom Room Fusion Engine |
+| **Edge 1 $\to$ Cloud** | `if/kebisingan/kelas/node1/telemetry`<br>`if/kebisingan/kelas/hp1/telemetry` | Telemetri level desibel & moving average zona depan |
+| **Edge 2 $\to$ Cloud** | `if/kebisingan/kelas/node2/telemetry`<br>`if/kebisingan/kelas/hp2/telemetry` | Telemetri FFT pita vokal & klasifikasi obrolan belakang |
+| **Edge $\to$ Cloud** | `if/kebisingan/kelas/+/alert` | Notifikasi darurat saat kebisingan melampaui ambang batas |
+| **Dashboard $\to$ Edge** | `if/kebisingan/kelas/control` | Perintah pengaturan ambang batas (`set_threshold`) & `mute` |
+| **Aggregator $\to$ Cloud** | `if/kebisingan/kelas/room/status` | Status terpadu hasil Classroom Room Fusion Engine |
 
 ### Format Payload JSON
 

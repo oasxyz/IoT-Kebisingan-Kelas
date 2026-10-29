@@ -25,9 +25,9 @@ except ImportError:
 # ================= Konfigurasi Jaringan & Topik MQTT =================
 MQTT_BROKER = "broker.hivemq.com"
 MQTT_PORT = 1883
-TOPIC_TELEMETRY_NODE2 = "kelas/kebisingan/node2/telemetry"
-TOPIC_TELEMETRY_HP2   = "kelas/kebisingan/hp2/telemetry"
-TOPIC_ALERT           = "kelas/kebisingan/node2/alert"
+TOPIC_TELEMETRY_NODE2 = "if/kebisingan/kelas/node2/telemetry"
+TOPIC_TELEMETRY_HP2   = "if/kebisingan/kelas/hp2/telemetry"
+TOPIC_ALERT           = "if/kebisingan/kelas/node2/alert"
 
 DEVICE_ID = "HP_02"
 DEVICE_NAME = "HP2_Edge_Chatter_Classifier"

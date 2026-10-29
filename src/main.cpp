@@ -22,9 +22,9 @@ const char *WIFI_PASSWORD = "";
 // --- Konfigurasi MQTT Broker ---
 const char *MQTT_BROKER = "broker.hivemq.com";
 const int MQTT_PORT = 1883;
-const char *TOPIC_TELEMETRY = "kelas/kebisingan/node1/telemetry";
-const char *TOPIC_ALERT = "kelas/kebisingan/node1/alert";
-const char *TOPIC_CONTROL = "kelas/kebisingan/node1/control";
+const char *TOPIC_TELEMETRY = "if/kebisingan/kelas/node1/telemetry";
+const char *TOPIC_ALERT = "if/kebisingan/kelas/node1/alert";
+const char *TOPIC_CONTROL = "if/kebisingan/kelas/node1/control";
 
 WiFiClient espClient;
 PubSubClient mqttClient(espClient);
@@ -50,6 +50,8 @@ void connectMQTT();
 void mqttCallback(char *topic, byte *payload, unsigned int length);
 float calculateMovingAverage(float newSample);
 void processNoiseActuation(float dbSmooth, String &status, bool &isAlarm);
+void updateBuzzerAlert();
+void setBuzzerState(bool active);
 
 void setup() {
   Serial.begin(115200);
@@ -84,6 +86,7 @@ void loop() {
     connectMQTT();
   }
   mqttClient.loop();
+  updateBuzzerAlert();
 
   unsigned long currentMillis = millis();
   if (currentMillis - lastPublishTime >= PUBLISH_INTERVAL_MS) {
@@ -219,6 +222,13 @@ float calculateMovingAverage(float newSample) {
 }
 
 bool buzzerIsActive = false;
+
+void updateBuzzerAlert() {
+  if (buzzerIsActive && !buzzerMuted) {
+    int freq = ((millis() / 250) % 2 == 0) ? 1200 : 1800;
+    tone(PIN_BUZZER, freq);
+  }
+}
 
 void setBuzzerState(bool active) {
   if (active && !buzzerMuted) {
