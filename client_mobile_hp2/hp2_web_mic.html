@@ -569,8 +569,11 @@
     const TOPIC_TELEMETRY = "kelas/kebisingan/node2/telemetry";
     const TOPIC_TELEMETRY_HP2 = "kelas/kebisingan/hp2/telemetry";
     const TOPIC_ALERT = "kelas/kebisingan/node2/alert";
+    const TOPIC_CONTROL = "kelas/kebisingan/node2/control";
+    const TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control";
     const CLIENT_ID = "HP2_WebEdge_" + Math.random().toString(16).substr(2, 8);
-    const THRESHOLD_CHATTER_DB = 75.0;
+    let THRESHOLD_CHATTER_DB = 75.0;
+    let isMuted = false;
 
     let isRunning = false;
     let audioContext = null;
@@ -614,12 +617,29 @@
     // ==========================================
     function connectMqtt() {
       log(`Menghubungkan ke broker MQTT ${BROKER_HOST}:${BROKER_PORT}...`, "accent");
-      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, CLIENT_ID);
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, "/mqtt", CLIENT_ID);
 
       mqttClient.onConnectionLost = (resp) => {
         mqttDot.className = "mqtt-dot mqtt-disconnected";
         mqttStatusText.innerText = "Terputus";
         log(`Koneksi MQTT terputus: ${resp.errorMessage}`, "alert");
+      };
+
+      mqttClient.onMessageArrived = (message) => {
+        try {
+          const cmd = JSON.parse(message.payloadString);
+          log(`📥 Perintah Kontrol diterima: ${message.payloadString}`, "accent");
+          if (typeof cmd.set_threshold === "number") {
+            THRESHOLD_CHATTER_DB = Number(cmd.set_threshold);
+            log(`⚙️ Threshold diubah ke: ${THRESHOLD_CHATTER_DB.toFixed(1)} dB`, "success");
+          }
+          if (typeof cmd.mute === "boolean") {
+            isMuted = cmd.mute;
+            log(`🔇 Status Mute: ${isMuted ? "AKTIF" : "NONAKTIF"}`, "accent");
+          }
+        } catch(e) {
+          log(`Format perintah salah: ${e.message}`, "alert");
+        }
       };
 
       mqttClient.connect({
@@ -629,7 +649,9 @@
         onSuccess: () => {
           mqttDot.className = "mqtt-dot mqtt-connected";
           mqttStatusText.innerText = "Terhubung (HiveMQ)";
-          log(`MQTT Terhubung! Menyiapkan telemetri ke: ${TOPIC_TELEMETRY}`, "success");
+          mqttClient.subscribe(TOPIC_CONTROL);
+          mqttClient.subscribe(TOPIC_GLOBAL_CONTROL);
+          log(`MQTT Terhubung! Subscribed ke: ${TOPIC_CONTROL}`, "success");
         },
         onFailure: (err) => {
           mqttDot.className = "mqtt-dot mqtt-disconnected";
@@ -886,7 +908,7 @@
         msgHp.destinationName = TOPIC_TELEMETRY_HP2;
         mqttClient.send(msgHp);
 
-        if (isAlert) {
+        if (isAlert && !isMuted) {
           const alertPayload = {
             device_id: "HP_02",
             location: "Ruang_Kelas_Belakang",

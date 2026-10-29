@@ -57,9 +57,16 @@
     let mqttClient = null;
     let intervalTimer = null;
 
+    let thresholdDb = 75.0;
+    let isMuted = false;
+
     const BROKER_HOST = "broker.hivemq.com";
     const BROKER_PORT = 8884; // WebSocket SSL port for HiveMQ
     const TOPIC_TELEMETRY = "kelas/kebisingan/hp1/telemetry";
+    const TOPIC_TELEMETRY_NODE1 = "kelas/kebisingan/node1/telemetry";
+    const TOPIC_ALERT = "kelas/kebisingan/node1/alert";
+    const TOPIC_CONTROL = "kelas/kebisingan/node1/control";
+    const TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control";
     const CLIENT_ID = "HP1_WebEdge_" + Math.random().toString(16).substr(2, 8);
 
     function log(msg) {
@@ -71,19 +78,38 @@
 
     function initMqtt() {
       log(`Menghubungkan MQTT ke ${BROKER_HOST}:${BROKER_PORT}...`);
-      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, CLIENT_ID);
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, "/mqtt", CLIENT_ID);
 
       mqttClient.onConnectionLost = (resp) => {
         document.getElementById("mqttStatus").innerText = "Status MQTT: Terputus (" + resp.errorMessage + ")";
         document.getElementById("mqttStatus").style.color = "#f87171";
       };
 
+      mqttClient.onMessageArrived = (message) => {
+        try {
+          const cmd = JSON.parse(message.payloadString);
+          log(`📥 Perintah Kontrol diterima: ${message.payloadString}`);
+          if (typeof cmd.set_threshold === "number") {
+            thresholdDb = Number(cmd.set_threshold);
+            log(`⚙️ Threshold diubah ke: ${thresholdDb.toFixed(1)} dB`);
+          }
+          if (typeof cmd.mute === "boolean") {
+            isMuted = cmd.mute;
+            log(`🔇 Status Mute: ${isMuted ? "AKTIF" : "NONAKTIF"}`);
+          }
+        } catch(e) {}
+      };
+
       mqttClient.connect({
         useSSL: true,
+        timeout: 5,
+        keepAliveInterval: 30,
         onSuccess: () => {
           document.getElementById("mqttStatus").innerText = "Status MQTT: Terhubung ke Broker (HiveMQ)";
           document.getElementById("mqttStatus").style.color = "#4ade80";
-          log("MQTT Terhubung! Siap mengirim data ke: " + TOPIC_TELEMETRY);
+          mqttClient.subscribe(TOPIC_CONTROL);
+          mqttClient.subscribe(TOPIC_GLOBAL_CONTROL);
+          log("MQTT Terhubung! Subscribed ke: " + TOPIC_CONTROL);
         },
         onFailure: (err) => {
           document.getElementById("mqttStatus").innerText = "Gagal konek MQTT: " + err.errorMessage;
@@ -205,10 +231,29 @@
         timestamp: new Date().toISOString()
       };
 
+      payload.threshold_db = thresholdDb;
       if (mqttClient && mqttClient.isConnected()) {
         const msg = new Paho.MQTT.Message(JSON.stringify(payload));
         msg.destinationName = TOPIC_TELEMETRY;
         mqttClient.send(msg);
+
+        const msgNode = new Paho.MQTT.Message(JSON.stringify(payload));
+        msgNode.destinationName = TOPIC_TELEMETRY_NODE1;
+        mqttClient.send(msgNode);
+
+        if (isAlert && !isMuted) {
+          const alertPayload = {
+            device_id: "HP_01",
+            location: "Ruang_Kelas_Tengah",
+            event: "NOISE_EXCEEDED",
+            db_level: payload.db,
+            message: `Peringatan: Kebisingan di Ruang_Kelas_Tengah mencapai ${payload.db} dB!`
+          };
+          const alertMsg = new Paho.MQTT.Message(JSON.stringify(alertPayload));
+          alertMsg.destinationName = TOPIC_ALERT;
+          mqttClient.send(alertMsg);
+        }
+
         log(`Sent MQTT: ${payload.db} dB | ${payload.status}`);
       }
     }

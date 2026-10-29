@@ -1,181 +1,139 @@
 # 📢 Sistem Pemantau Kebisingan Ruang Kelas Berbasis IoT (Multi-Node)
 
-> **Mata Kuliah / Proyek**: Internet of Things (IoT)  
-> **Status**: Selesai Tahap 1 (Anggota 1: Edge 1, Sensor Audio, DSP RMS, Setup Wokwi/PlatformIO) & Tahap 2 (Anggota 2: Edge 2 / HP 2 - Klasifikasi Khusus Kebisingan Obrolan)  
-> **Next Step**: Dilanjutkan oleh Anggota 3 (Dashboard MQTT Terpadu) dan Anggota 4 (Integrasi Multi-Node, Pengujian, & Presentasi).
+> **Mata Kuliah / Proyek**: Internet of Things (IoT) Multikomunikasi — Kelompok 7  
+> **Tema Proyek**: Sistem Pemantau Kebisingan Ruang Belajar (Ruang Kelas)  
+> **Status Tim**:
+> - **Anggota 1 (Edge 1 — Depan Kelas)**: ✅ **SELESAI** (ESP32 Wokwi `src/main.cpp`, RMS, dB SPL, Moving Average, & HP 1 Web Mic).
+> - **Anggota 2 (Edge 2 — Belakang Kelas)**: ✅ **SELESAI** (FFT Spectral Vocal Band 300–3400 Hz, ZCR, & Decision Tree AI Obrolan Siswa).
+> - **Anggota 3 (MQTT & Dashboard Terpadu)**: ✅ **SELESAI** (Modul Kontrak MQTT, Normalizer JSON, Room Fusion Engine, Web Dashboard Glassmorphism Real-Time, & Kontrol 2 Arah).
+> - **Anggota 4 (Integrasi, Pengujian, PPT & Demo)**: 🎯 Siap untuk pengujian akhir dan penyusunan laporan/PPT berdasarkan data terpadu dari Dashboard.
 
 ---
 
-## 🚀 PANDUAN CEPAT MENJALANKAN DEMO (Tugas Anggota 1)
-
-Ikuti langkah-langkah di bawah ini untuk mendemokan sistem ke dosen / asisten lab:
-
-### Langkah 1: Buka Web Monitor MQTT (Layar Pemantau Cloud)
-Sebelum menyalakan simulasi, buka web monitor MQTT publik agar data yang dikirim ESP32 bisa langsung terlihat:
-1. Buka browser, akses: [HiveMQ Web Client](http://www.hivemq.com/demos/websocket-client/)
-2. Klik tombol **"Connect"** (biarkan pengaturan host default `broker.hivemq.com`).
-3. Pada bagian **Subscriptions**, klik **"Add New Topic Subscription"**:
-   - Topic: `kelas/kebisingan/#`
-   - Klik **"Subscribe"**.
-   *(Layar ini akan menangkap semua data telemetri dan alert secara realtime).*
-
----
-
-### Langkah 2: Jalankan Simulasi Wokwi di VS Code
-1. Buka folder `Pemantau_Kebisingan_Ruang_Kelas` di VS Code.
-2. Pastikan ekstensi **PlatformIO IDE** dan **Wokwi Simulator** aktif di VS Code.
-3. Klik ikon centang **PlatformIO: Build** (`✓`) di status bar bawah VS Code.
-4. Buka file `diagram.json`, lalu klik tombol **Start Simulation** (ikon Play hijau di atas jendela editor Wokwi).
-5. Buka tab **Serial Monitor** PlatformIO (`115200 baud`) untuk melihat log:
-   - Terkoneksi ke WiFi `Wokwi-GUEST`.
-   - Terkoneksi ke Broker `broker.hivemq.com`.
-   - Data telemetri mulai dikirim setiap 1 detik.
-
----
-
-### Langkah 3: Skenario Pengujian / Uji Coba
-
-Putar kenop potensiometer (simulasi sensor suara mic analog di Wokwi) untuk menguji respon sistem:
-
-| Skenario | Posisi Kenop Potensiometer | Respon Hardware (Wokwi) | Status di Serial & HiveMQ |
-|:---|:---|:---|:---|
-| **A. Kelas Hening / Kondusif** | Putar ke kiri bawah (< 55 dB) | **LED Hijau ON**, LED Merah OFF, Buzzer OFF | `"SANGAT TENANG"` / `"KONDUSIF"` |
-| **B. Suasana Ramai (Peringatan)** | Putar ke tengah/jam 1 (70 - 75 dB) | **LED Merah ON**, LED Hijau OFF, Buzzer OFF | `"RAMAI / PERINGATAN"` |
-| **C. Kelas Sangat Bising (Alarm)** | Putar ke kanan penuh (> 75 dB) | **LED Merah ON**, **Buzzer Berbunyi BEEP** | `"SANGAT BISING"` + Pesan Alert |
-
----
-
-### Langkah 4: Demo Alternatif via HP 1 (Web Mic API)
-Jika dosen meminta bukti pembacaan dari mikrofon HP 1 (Depan Kelas):
-1. Buka file `client_mobile_hp1/hp1_web_mic.html` di browser laptop atau browser Chrome HP Android.
-2. Klik **"🎤 Mulai Baca Mikrofon HP"** dan izinkan akses audio.
-3. Berbicaralah atau tepuk tangan:
-   - Nilai desibel (dB) dan grafik RMS akan bergerak mengikuti suara asli.
-   - Data langsung terkirim secara bersamaan ke topik `kelas/kebisingan/hp1/telemetry` di HiveMQ!
-
----
-
-### Langkah 5: Demo Edge HP 2 — Deteksi Kebisingan Obrolan Belakang Kelas (Tugas Anggota 2)
-Edge Node 2 dilengkapi algoritma klasifikasi khusus kebisingan obrolan siswa:
-1. **Opsi A (Web Browser / HP Android)**:
-   - Buka `client_mobile_hp2/hp2_web_mic.html` di browser laptop atau browser HP Android.
-   - Tersedia visualizer spektrum FFT (menyorot pita suara vokal manusia 300–3400 Hz).
-   - Klik **"Mulai Baca Mikrofon HP 2"** untuk mikrofon asli, atau gunakan tombol simulasi (`Sim: Hening`, `Sim: Obrolan`, `Sim: Gaduh`) untuk pengujian instan.
-   - Data langsung dipublish ke topik `kelas/kebisingan/node2/telemetry` & `kelas/kebisingan/hp2/telemetry`!
-2. **Opsi B (Python Script)**:
-   - Jalankan terminal: `python client_mobile_hp2/hp2_mic_python.py`
-   - Script akan otomatis mengekstraksi FFT pita suara vokal manusia, Zero-Crossing Rate (ZCR), dan Decision Tree untuk mengklasifikasikan intensitas obrolan serta mengirim data ke MQTT.
-
----
-
-## 🔄 PETUNJUK LANJUTAN UNTUK ANGGOTA TIM
-
-Bagian ini adalah acuan kerja untuk **Anggota 3 dan 4** agar pengembangan dashboard dan integrasi akhir berjalan mulus.
+## 🏛️ Arsitektur Sistem Terpadu (End-to-End)
 
 ```
-       [ Edge 1: ESP32 / HP 1 ]  ---> Topic: kelas/kebisingan/node1/telemetry ---\
-                                                                                 +---> [ Broker HiveMQ Cloud ] ---> [ Anggota 3: Dashboard ]
-       [ Edge 2: HP 2 / Node 2 ] ---> Topic: kelas/kebisingan/node2/telemetry ---/
+   [ Edge 1: ESP32 Wokwi / HP 1 ]  ---> Topic: kelas/kebisingan/node1/telemetry ---\
+   (Depan: RMS & Moving Average)                                                   \
+                                                                                    +---> [ Broker Cloud HiveMQ ] <---> [ Anggota 3: Web Dashboard ]
+   [ Edge 2: HP 2 / Node 2 ]       ---> Topic: kelas/kebisingan/node2/telemetry ---/     (wss://...:8884/mqtt)          (Real-Time Charts, AI Meter,
+   (Belakang: FFT Vokal & AI)                                                                                            Room Fusion, & Kontrol 2 Arah)
 ```
 
-### 👤 Tugas Anggota 2 — Edge 2 & Algoritma Klasifikasi Obrolan
-* **Status: SELESAI**
-* **Implementasi**:
-  1. Menyiapkan perangkat Edge ke-2 pada folder `client_mobile_hp2/` (`hp2_web_mic.html` & `hp2_mic_python.py`).
-  2. ID perangkat: `"HP_02"`, lokasi `"Ruang_Kelas_Belakang"`.
-  3. Topik publish: `kelas/kebisingan/node2/telemetry` & `kelas/kebisingan/hp2/telemetry`, alarm: `kelas/kebisingan/node2/alert`.
-  4. Algoritma cerdas:
-     - Ekstraksi energi spektral pita frekuensi vokal manusia (300 Hz – 3400 Hz via FFT).
-     - Perhitungan Zero-Crossing Rate (ZCR) untuk membedakan ucapan vokal vs derau konstan.
-     - Decision Tree Classifier untuk mendeteksi: `HENING`, `OBROLAN KONDUSIF`, `OBROLAN AKTIF / DISKUSI`, `OBROLAN SANGAT GADUH / BISING`, dan `BISING NON OBROLAN`.
-
 ---
 
-### 👤 Tugas Anggota 3 — Broker MQTT & Dashboard Monitoring
-* **Tanggung Jawab**:
-  1. Menyiapkan dashboard antarmuka visual (bisa menggunakan **Python Tkinter / Streamlit / Web HTML & Chart.js**).
-  2. Melakukan *Subscribe* ke topik:
-     - `kelas/kebisingan/node1/telemetry` (Data Edge 1)
-     - `kelas/kebisingan/node2/telemetry` (Data Edge 2)
-     - `kelas/kebisingan/+/alert` (Notifikasi darurat kebisingan)
-  3. Menampilkan elemen visual:
-     - Grafik garis *real-time* tingkat dB Node 1 vs Node 2.
-     - Indikator status kelas (*Kondusif* = Hijau, *Peringatan* = Kuning, *Bising* = Merah).
-     - Riwayat log alarm kebisingan.
-  4. Menyiapkan tombol kontrol perintah (*Publish* ke `kelas/kebisingan/node1/control`):
-     - Ubah batas ambang: `{"set_threshold": 80.0}`
-     - Mute alarm buzzer: `{"mute": true}`
+## 🚀 PANDUAN CEPAT MENJALANKAN DASHBOARD & SISTEM (Tugas Anggota 3)
 
----
-
-### 👤 Tugas Anggota 4 — Integrasi, Pengujian, PPT & Demo Video
-* **Tanggung Jawab**:
-  1. Menggabungkan pengujian seluruh node: Node 1 (ESP32) + Node 2 berjalan bersamaan dan terbaca serentak di Dashboard Anggota 3.
-  2. Mencatat data hasil pengujian tabel perbandingan:
-     - Nilai dB saat kelas kosong.
-     - Nilai dB saat guru/dosen menjelaskan.
-     - Nilai dB saat diskusi kelompok berlangsung.
-  3. Menyusun slide PowerPoint (PPT) presentasi:
-     - Masalah: Gangguan konsentrasi belajar akibat kebisingan kelas.
-     - Solusi & Arsitektur IoT (Edge Devices, MQTT, Dashboard).
-     - Data Processing yang digunakan (RMS, Moving Average, Algoritma Klasifikasi).
-     - Hasil pengujian dan kesimpulan.
-  4. Merekam video demo singkat (screen recording simulasi Wokwi + Dashboard aktif).
-  5. Merapikan repositori GitHub kelompok.
-
----
-
-## 📋 KONTRAK DATA & FORMAT JSON (Standard Payload)
-
-### 1. Payload Telemetri Edge (`kelas/kebisingan/+/telemetry`)
-```json
-{
-  "device_id": "NODE_01",
-  "device_name": "ESP32_Edge_Sound_Sensor",
-  "location": "Ruang_Kelas_Depan",
-  "raw_adc": 2150,
-  "peak_to_peak": 480,
-  "rms": 142.35,
-  "db_instant": 75.1,
-  "db_smooth": 73.8,
-  "status": "RAMAI / PERINGATAN",
-  "threshold_db": 75.0,
-  "alert": true,
-  "uptime_ms": 35200
-}
+### 1. Instalasi Dependensi Python (Opsional untuk Server & Simulator)
+Buka terminal di folder root proyek dan jalankan:
+```bash
+pip install -r requirements.txt
 ```
 
-### 2. Payload Peringatan Alarm (`kelas/kebisingan/+/alert`)
-```json
-{
-  "device_id": "NODE_01",
-  "event": "NOISE_EXCEEDED",
-  "db_level": 84.2,
-  "message": "Peringatan: Tingkat kebisingan ruang kelas melebihi batas aman!"
-}
-```
+### 2. Menjalankan Web Dashboard Utama
+Tersedia dua cara mudah untuk membuka Dashboard:
 
-### 3. Payload Perintah Kontrol Dashboard (`kelas/kebisingan/node1/control`)
-- Mengubah batas dB: `{"set_threshold": 80.0}`
-- Mematikan suara buzzer: `{"mute": true}`
+#### Opsi A (Menggunakan Web Server Lokal Python — Direkomendasikan):
+Jalankan perintah berikut di terminal:
+```bash
+python dashboard_server.py
+```
+Terminal akan menampilkan URL akses:
+- **Web Dashboard (Laptop/PC)**: `http://localhost:8000/dashboard/index.html`
+- **Web Edge HP 1 (Smartphone 1)**: `http://<IP_LAPTOP>:8000/client_mobile_hp1/hp1_web_mic.html`
+- **Web Edge HP 2 (Smartphone 2)**: `http://<IP_LAPTOP>:8000/client_mobile_hp2/hp2_web_mic.html`
+
+#### Opsi B (Buka Langsung File HTML):
+Cukup klik ganda (double click) file `dashboard/index.html` di File Explorer untuk membukanya di browser Google Chrome / Edge. Dashboard langsung terkoneksi ke Cloud HiveMQ via Secure WebSocket SSL (`wss://broker.hivemq.com:8884/mqtt`).
 
 ---
 
-## 🛠 Struktur File Proyek
+### 3. Menjalankan Pengujian / Demo Simulator Otomatis
+Jika kamu ingin menguji atau mendemokan tampilan Dashboard tanpa harus menyalakan Wokwi dan memegang 2 HP fisik sekaligus:
+
+#### Cara 1: Menggunakan Tombol di Web Dashboard
+Klik tombol **"🚀 Mulai Simulator Demo"** langsung di dalam Dashboard. Simulator internal akan mem-publish data dinamis 4 fase akustik ke HiveMQ.
+
+#### Cara 2: Menggunakan Skrip Multi-Node Simulator Python
+Buka terminal terpisah dan jalankan:
+```bash
+python scripts/simulate_multi_node.py
+```
+Simulator ini akan mensimulasikan Edge 1 (Depan) dan Edge 2 (Belakang) secara bersamaan, berganti fase secara otomatis (Hening $\to$ Dosen Menjelaskan $\to$ Obrolan Belakang $\to$ Kelas Gaduh), dan langsung merespons perintah kontrol (`set_threshold` & `mute`) dari Dashboard!
+
+---
+
+### 4. Menjalankan Pengujian Otomatis (Unit Tests)
+Untuk memverifikasi bahwa Normalizer, Kontrak Topik, Deduplikasi, dan Room Fusion bebas bug:
+```bash
+python -m unittest discover -s tests -p "test_*.py" -v
+```
+
+---
+
+## 🎛️ Fitur Unggulan Web Dashboard Anggota 3
+
+1. **Classroom Acoustic State Fusion (Hero Banner)**:
+   - Menggabungkan data spasial Zona Depan dan Zona Belakang menjadi satu kesimpulan kondisi ruangan:
+     - ✨ `SANGAT TENANG — SUASANA FOKUS / UJIAN`
+     - ✅ `KONDUSIF — PEMBELAJARAN BERLANGSUNG`
+     - 🗣️ `PERINGATAN — OBROLAN SISWA TERDETEKSI DI BELAKANG`
+     - 🚨 `SANGAT BISING — ALARM KELAS AKTIF`
+2. **Dual Real-Time Edge Monitoring**:
+   - **Edge 1 (Depan Kelas)**: Memantau level dB, RMS, Peak, dan Moving Average.
+   - **Edge 2 (Belakang Kelas)**: Memantau level dB, **Rasio Pita Energi Suara Vokal Manusia (300–3400 Hz %)**, **Probabilitas Obrolan Siswa (0–100%)**, dan klasifikasi Decision Tree.
+3. **Grafik Garis Real-Time 60 Detik**:
+   - Kurva Cyan (Edge 1), Kurva Purple (Edge 2), dan Garis Merah Putus-Putus (Threshold Aktif).
+   - Dilengkapi *Deduplication Filter* sehingga pesan ganda dari Edge 2 tidak terplot ganda.
+4. **Kontrol Perintah 2 Arah (Bi-Directional MQTT)**:
+   - Mengubah ambang batas desibel (`set_threshold`) ke ESP32 dan HP Web Mic secara real-time.
+   - Preset Mode Instan: `📝 Mode Ujian (60 dB)`, `📖 Mode Belajar (75 dB)`, `💬 Mode Diskusi (85 dB)`.
+   - Tombol `Mute / Unmute Buzzer Alarm` (`{"mute": true}`).
+5. **Riwayat Alarm & Export CSV**:
+   - Mencatat seluruh lonjakan bising dan obrolan berlebih lengkap dengan timestamp.
+   - Tombol **"Export CSV"** untuk mengunduh laporan pengujian bagi Anggota 4 dalam penyusunan PPT.
+
+---
+
+## 📋 Struktur Folder Repositori
 
 ```text
-Pemantau_Kebisingan_Ruang_Kelas/
-├── README.md                   # File panduan utama ini (Demo & Handoff tugas tim)
-├── platformio.ini              # Konfigurasi PlatformIO & library
-├── wokwi.toml                  # Konfigurasi target simulasi Wokwi
-├── diagram.json                # Rangkaian sirkuit Wokwi (ESP32, Mic/Pot, LED, Buzzer)
+IoT-Kebisingan-Kelas/
+├── dashboard/                      # [BARU - ANGGOTA 3] Web Dashboard Monitoring & Kontrol Utama
+│   └── index.html                  # Antarmuka Glassmorphism, Grafik Real-Time, Fusion Engine & Kontrol
+├── shared/                         # [BARU - ANGGOTA 3] Modul Standar MQTT & Normalizer
+│   ├── __init__.py
+│   ├── mqtt_contract.py            # Kamus topik, normalisasi payload heterogen, & filter deduplikasi
+│   └── room_fusion.py              # Logika agregasi akustik multi-node ruang kelas
+├── scripts/                        # [BARU - ANGGOTA 3] Alat Bantu Simulasi & Pengujian
+│   └── simulate_multi_node.py      # Simulator multi-node (Node 1 + Node 2) + respons perintah kontrol
+├── tests/                          # [BARU - ANGGOTA 3] Automated Unit Tests
+│   └── test_dashboard_contract.py  # Pengujian otomatis normalizer, deduplikasi, dan room fusion
+├── dashboard_server.py             # [BARU - ANGGOTA 3] Web server lokal & service background MQTT
+├── requirements.txt                # [BARU - ANGGOTA 3] Daftar dependensi pustaka Python
 ├── src/
-│   └── main.cpp                # Firmware ESP32: Sampling audio, RMS, dB, Filter, MQTT
-├── client_mobile_hp1/          # Edge HP 1 (Depan Kelas - Level dB Umum)
-│   ├── hp1_web_mic.html        # Web Audio API (buka di browser Chrome HP)
-│   └── hp1_mic_python.py       # Script Python pembaca mic
-└── client_mobile_hp2/          # Edge HP 2 (Belakang Kelas - Deteksi Obrolan)
-    ├── hp2_web_mic.html        # Web Audio API + FFT Visualizer & Klasifikasi Obrolan
-    └── hp2_mic_python.py       # Script Python FFT & Decision Tree Obrolan Kelas
+│   └── main.cpp                    # [ANGGOTA 1] Firmware ESP32 Wokwi (RMS, Moving Average, Kontrol)
+├── diagram.json                    # [ANGGOTA 1] Rangkaian sirkuit virtual Wokwi
+├── platformio.ini                  # [ANGGOTA 1] Konfigurasi PlatformIO
+├── wokwi.toml                      # [ANGGOTA 1] Konfigurasi target Wokwi
+├── client_mobile_hp1/              # [ANGGOTA 1] Edge HP 1 (Depan Kelas)
+│   ├── hp1_web_mic.html            # Web Audio API + Subscribe Kontrol 2 Arah
+│   └── hp1_mic_python.py           # Skrip pembaca mic Python HP 1
+├── client_mobile_hp2/              # [ANGGOTA 2] Edge HP 2 (Belakang Kelas - AI Obrolan)
+│   ├── hp2_web_mic.html            # Web Audio API, FFT Vokal, AI Classifier + Subscribe Kontrol 2 Arah
+│   └── hp2_mic_python.py           # Skrip Python FFT Vokal 300-3400Hz, ZCR & Decision Tree
+├── README.md                       # Panduan lengkap proyek kelompok
+└── README_ANGGOTA.md               # Pembagian tugas & checklist 4 anggota tim
 ```
 
+---
+
+## 📡 Rangkuman Kontrak Topik & Payload MQTT
+
+| Arah Komunikasi | Topik MQTT | Format Payload | Keterangan |
+| :--- | :--- | :--- | :--- |
+| **Edge 1 $\to$ Cloud** | `kelas/kebisingan/node1/telemetry`<br>`kelas/kebisingan/hp1/telemetry` | `{"device_id":"NODE_01", "db_smooth":64.2, "rms":0.035, "alert":false, ...}` | Telemetri level desibel & moving average zona depan |
+| **Edge 2 $\to$ Cloud** | `kelas/kebisingan/node2/telemetry`<br>`kelas/kebisingan/hp2/telemetry` | `{"device_id":"HP_02", "db":71.4, "vocal_energy_ratio":72.5, "chatter_prob":78, ...}` | Telemetri FFT pita vokal & AI klasifikasi obrolan belakang |
+| **Edge $\to$ Cloud** | `kelas/kebisingan/node1/alert`<br>`kelas/kebisingan/node2/alert` | `{"device_id":"...", "event":"NOISE_EXCEEDED", "db_level":82.1, ...}` | Pesan darurat saat kebisingan melampaui batas ambang |
+| **Dashboard $\to$ Edge** | `kelas/kebisingan/node1/control`<br>`kelas/kebisingan/node2/control`<br>`kelas/kebisingan/control` | `{"set_threshold":80.0, "mute":true, "mode":"diskusi"}` | Perintah kontrol batas desibel & mute buzzer alarm |
+| **Aggregator $\to$ Cloud** | `kelas/kebisingan/room/status` | `{"status_code":"KONDUSIF_BELAJAR", "avg_db":63.5, ...}` | Status terpadu hasil Classroom Room Fusion Engine |

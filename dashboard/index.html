@@ -1,0 +1,1450 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Dashboard Pemantau Kebisingan Kelas - Kelompok 7</title>
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+
+  <!-- Chart.js CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+
+  <!-- Paho MQTT WebSocket Client CDN -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.0.1/mqttws31.min.js"></script>
+
+  <style>
+    :root {
+      --bg-main: #0b0f19;
+      --card-bg: rgba(22, 30, 49, 0.85);
+      --card-border: #1e293b;
+      --accent-cyan: #06b6d4;
+      --accent-emerald: #10b981;
+      --accent-amber: #f59e0b;
+      --accent-rose: #f43f5e;
+      --accent-purple: #8b5cf6;
+      --text-main: #f8fafc;
+      --text-muted: #94a3b8;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', sans-serif;
+    }
+
+    body {
+      background-color: var(--bg-main);
+      background-image: 
+        radial-gradient(at 0% 0%, rgba(6, 182, 212, 0.12) 0px, transparent 50%),
+        radial-gradient(at 100% 100%, rgba(139, 92, 246, 0.12) 0px, transparent 50%);
+      color: var(--text-main);
+      min-height: 100vh;
+      padding: 24px 20px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    .wrapper {
+      width: 100%;
+      max-width: 1200px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    /* Header Nav */
+    .top-bar {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 16px;
+      padding: 16px 24px;
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      backdrop-filter: blur(12px);
+    }
+
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-icon {
+      width: 42px;
+      height: 42px;
+      background: linear-gradient(135deg, var(--accent-cyan), var(--accent-purple));
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      box-shadow: 0 4px 14px rgba(6, 182, 212, 0.35);
+    }
+
+    .brand-title {
+      font-size: 18px;
+      font-weight: 800;
+      letter-spacing: -0.3px;
+    }
+
+    .brand-sub {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .meta-badges {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .status-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      padding: 6px 14px;
+      border-radius: 999px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .dot-live {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: var(--accent-rose);
+      box-shadow: 0 0 8px var(--accent-rose);
+    }
+
+    .dot-connected {
+      background: var(--accent-emerald) !important;
+      box-shadow: 0 0 8px var(--accent-emerald) !important;
+    }
+
+    /* Hero Banner: Classroom State Fusion */
+    .hero-banner {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px 28px;
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 24px;
+      box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.5);
+      position: relative;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+
+    .hero-banner::before {
+      content: '';
+      position: absolute;
+      top: 0; left: 0; bottom: 0;
+      width: 6px;
+      background: var(--accent-emerald);
+      transition: background 0.3s ease;
+    }
+
+    .hero-banner.border-emerald::before { background: var(--accent-emerald); }
+    .hero-banner.border-cyan::before { background: var(--accent-cyan); }
+    .hero-banner.border-amber::before { background: var(--accent-amber); }
+    .hero-banner.border-rose::before { 
+      background: var(--accent-rose);
+      box-shadow: 0 0 16px var(--accent-rose);
+      animation: flashBorder 1.2s infinite;
+    }
+
+    @keyframes flashBorder {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.3; }
+    }
+
+    .hero-status-title {
+      font-size: 13px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      font-weight: 700;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    .hero-status-text {
+      font-size: 26px;
+      font-weight: 800;
+      color: var(--text-main);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 8px;
+    }
+
+    .hero-desc {
+      font-size: 14px;
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    .hero-metric-box {
+      background: rgba(15, 23, 42, 0.7);
+      border: 1px solid var(--card-border);
+      border-radius: 16px;
+      padding: 16px 24px;
+      text-align: center;
+      min-width: 170px;
+    }
+
+    .hero-metric-lbl {
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-bottom: 4px;
+    }
+
+    .hero-metric-val {
+      font-size: 38px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-cyan);
+    }
+
+    .hero-metric-unit {
+      font-size: 16px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    /* Grid Kartu Edge Nodes */
+    .nodes-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(340px, 1fr));
+      gap: 20px;
+    }
+
+    .node-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      backdrop-filter: blur(12px);
+      box-shadow: 0 8px 24px -8px rgba(0, 0, 0, 0.4);
+      position: relative;
+    }
+
+    .node-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+    }
+
+    .node-badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+
+    .badge-cyan {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--accent-cyan);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+    }
+
+    .badge-purple {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    .node-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-top: 4px;
+    }
+
+    .node-loc {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+
+    .heartbeat-text {
+      font-size: 11px;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--text-muted);
+    }
+
+    .db-row {
+      display: flex;
+      align-items: baseline;
+      justify-content: space-between;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      padding-bottom: 14px;
+    }
+
+    .db-main {
+      font-size: 50px;
+      font-weight: 800;
+      font-family: 'JetBrains Mono', monospace;
+      line-height: 1;
+      color: var(--accent-emerald);
+      transition: color 0.3s;
+    }
+
+    .db-main-unit {
+      font-size: 18px;
+      font-weight: 600;
+      color: var(--text-muted);
+    }
+
+    .node-status-pill {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 6px 14px;
+      border-radius: 999px;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      background: rgba(16, 185, 129, 0.15);
+      color: var(--accent-emerald);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+
+    .metrics-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 10px;
+    }
+
+    .metric-item {
+      background: rgba(15, 23, 42, 0.5);
+      border: 1px solid rgba(255, 255, 255, 0.04);
+      border-radius: 10px;
+      padding: 10px 12px;
+    }
+
+    .metric-lbl {
+      font-size: 11px;
+      color: var(--text-muted);
+      margin-bottom: 2px;
+    }
+
+    .metric-val {
+      font-size: 14px;
+      font-weight: 600;
+      font-family: 'JetBrains Mono', monospace;
+    }
+
+    /* AI Chatter Panel (Edge 2) */
+    .ai-box {
+      background: rgba(139, 92, 246, 0.08);
+      border: 1px solid rgba(139, 92, 246, 0.25);
+      border-radius: 12px;
+      padding: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .ai-box-title {
+      font-size: 12px;
+      font-weight: 700;
+      color: var(--accent-purple);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    .progress-bar-bg {
+      width: 100%;
+      height: 8px;
+      background: rgba(15, 23, 42, 0.8);
+      border-radius: 999px;
+      overflow: hidden;
+    }
+
+    .progress-bar-fill {
+      height: 100%;
+      width: 0%;
+      background: linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald));
+      transition: width 0.4s ease, background 0.4s ease;
+    }
+
+    /* Chart Card */
+    .chart-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      backdrop-filter: blur(12px);
+    }
+
+    .chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .chart-title {
+      font-size: 16px;
+      font-weight: 700;
+    }
+
+    .chart-legend {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .legend-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .legend-color {
+      width: 12px;
+      height: 4px;
+      border-radius: 2px;
+    }
+
+    .chart-container {
+      width: 100%;
+      height: 300px;
+      position: relative;
+    }
+
+    /* Control & Preset Bar */
+    .control-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 24px;
+    }
+
+    .control-section-title {
+      font-size: 13px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      color: var(--text-muted);
+      margin-bottom: 12px;
+    }
+
+    .preset-buttons {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .btn-preset {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--card-border);
+      color: var(--text-main);
+      padding: 8px 14px;
+      border-radius: 10px;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-preset:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(6, 182, 212, 0.1);
+    }
+
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      margin-top: 8px;
+    }
+
+    .slider-range {
+      flex: 1;
+      accent-color: var(--accent-cyan);
+      cursor: pointer;
+    }
+
+    .threshold-badge {
+      font-size: 18px;
+      font-weight: 700;
+      font-family: 'JetBrains Mono', monospace;
+      color: var(--accent-cyan);
+      min-width: 60px;
+    }
+
+    .btn-action {
+      background: linear-gradient(135deg, var(--accent-cyan), #0284c7);
+      color: #fff;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 700;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: transform 0.15s, opacity 0.2s;
+    }
+
+    .btn-action:hover { opacity: 0.95; transform: translateY(-1px); }
+    .btn-action:active { transform: translateY(0); }
+
+    .btn-mute {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      border: 1px solid rgba(244, 63, 94, 0.3);
+    }
+
+    .btn-mute.is-muted {
+      background: var(--accent-rose);
+      color: #fff;
+    }
+
+    .btn-sim {
+      background: rgba(139, 92, 246, 0.15);
+      color: var(--accent-purple);
+      border: 1px solid rgba(139, 92, 246, 0.3);
+    }
+
+    /* Table Logs */
+    .logs-card {
+      background: var(--card-bg);
+      border: 1px solid var(--card-border);
+      border-radius: 20px;
+      padding: 24px;
+    }
+
+    .logs-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 16px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .table-container {
+      width: 100%;
+      overflow-x: auto;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    th {
+      background: rgba(15, 23, 42, 0.7);
+      padding: 12px 14px;
+      color: var(--text-muted);
+      font-weight: 600;
+      border-bottom: 1px solid var(--card-border);
+    }
+
+    td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 12px;
+    }
+
+    .tag-danger {
+      background: rgba(244, 63, 94, 0.15);
+      color: var(--accent-rose);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    .tag-warning {
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--accent-amber);
+      padding: 3px 8px;
+      border-radius: 6px;
+      font-weight: 600;
+    }
+
+    /* Footer */
+    footer {
+      text-align: center;
+      font-size: 12px;
+      color: var(--text-muted);
+      margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="wrapper">
+    <!-- Top Navigation Bar -->
+    <header class="top-bar">
+      <div class="brand">
+        <div class="brand-icon">🔊</div>
+        <div>
+          <h1 class="brand-title">Smart Noise Class Monitor</h1>
+          <p class="brand-sub">Sistem Pemantau Kebisingan Kelas Terpadu • Kelompok 7 (IoT)</p>
+        </div>
+      </div>
+
+      <div class="meta-badges">
+        <div class="status-badge">
+          <div class="dot-live" id="mqttDot"></div>
+          <span id="mqttStatus">Menghubungkan ke Broker...</span>
+        </div>
+        <div class="status-badge">
+          <span>Paket: <strong id="packetCount" style="color:var(--accent-cyan)">0</strong></span>
+        </div>
+        <div class="status-badge" id="muteIndicatorBadge" style="display:none; color:var(--accent-rose); border-color:var(--accent-rose);">
+          <span>🔇 BUZZER MUTED</span>
+        </div>
+      </div>
+    </header>
+
+    <!-- Hero Banner: Classroom State Fusion -->
+    <section class="hero-banner border-emerald" id="heroBanner">
+      <div>
+        <div class="hero-status-title">Status Akustik Ruang Kelas Terpadu (Fusion Engine)</div>
+        <div class="hero-status-text" id="heroStatusText">
+          <span>✨</span>
+          <span>SANGAT TENANG — SUASANA FOKUS</span>
+        </div>
+        <p class="hero-desc" id="heroDesc">
+          Tingkat suara ruang kelas sangat kondusif untuk belajar mandiri atau pelaksanaan ujian.
+        </p>
+      </div>
+      <div class="hero-metric-box">
+        <div class="hero-metric-lbl">Rata-Rata Kelas</div>
+        <div class="hero-metric-val" id="heroAvgDb">--</div>
+        <div class="hero-metric-unit">Desibel (dB SPL)</div>
+      </div>
+    </section>
+
+    <!-- Dua Kartu Edge Node (Depan vs Belakang) -->
+    <section class="nodes-grid">
+      <!-- Kartu Edge 1: Depan Kelas -->
+      <article class="node-card" id="cardNode1">
+        <div class="node-header">
+          <div>
+            <span class="node-badge badge-cyan">Edge 1 • Depan Kelas</span>
+            <h2 class="node-title" id="n1DevName">ESP32 / HP 1 Sensor</h2>
+            <p class="node-loc">Area Pengajar / Papan Tulis Depan</p>
+          </div>
+          <span class="heartbeat-text" id="n1Heartbeat">Menunggu data...</span>
+        </div>
+
+        <div class="db-row">
+          <div>
+            <div class="metric-lbl">Tingkat Kebisingan</div>
+            <div class="db-main" id="n1DbDisplay">-- <span class="db-main-unit">dB</span></div>
+          </div>
+          <div class="node-status-pill" id="n1StatusPill">STANDBY</div>
+        </div>
+
+        <div class="metrics-list">
+          <div class="metric-item">
+            <div class="metric-lbl">RMS Sinyal Audio</div>
+            <div class="metric-val" id="n1Rms">--</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-lbl">Puncak Gelombang (Peak)</div>
+            <div class="metric-val" id="n1Peak">--</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-lbl">dB Sesaat (Instant)</div>
+            <div class="metric-val" id="n1DbInstant">-- dB</div>
+          </div>
+          <div class="metric-item">
+            <div class="metric-lbl">Data Processing</div>
+            <div class="metric-val" style="color:var(--accent-cyan)">RMS + Moving Avg</div>
+          </div>
+        </div>
+      </article>
+
+      <!-- Kartu Edge 2: Belakang Kelas (AI Chatter Detection) -->
+      <article class="node-card" id="cardNode2">
+        <div class="node-header">
+          <div>
+            <span class="node-badge badge-purple">Edge 2 • Belakang Kelas</span>
+            <h2 class="node-title" id="n2DevName">HP 2 Chatter AI Classifier</h2>
+            <p class="node-loc">Area Siswa / Bangku Belakang</p>
+          </div>
+          <span class="heartbeat-text" id="n2Heartbeat">Menunggu data...</span>
+        </div>
+
+        <div class="db-row">
+          <div>
+            <div class="metric-lbl">Tingkat Kebisingan</div>
+            <div class="db-main" id="n2DbDisplay">-- <span class="db-main-unit">dB</span></div>
+          </div>
+          <div class="node-status-pill" id="n2StatusPill">STANDBY</div>
+        </div>
+
+        <!-- Panel Khusus AI Deteksi Obrolan -->
+        <div class="ai-box">
+          <div class="ai-box-title">
+            <span>🧠 AI Chatter Intelligence (FFT Vokal)</span>
+            <span id="n2Category">HENING</span>
+          </div>
+          <div class="metrics-list" style="margin-bottom:4px;">
+            <div class="metric-item" style="background:rgba(15,23,42,0.7)">
+              <div class="metric-lbl">Pita Vokal (300-3400Hz)</div>
+              <div class="metric-val" id="n2VocalRatio" style="color:var(--accent-purple)">-- %</div>
+            </div>
+            <div class="metric-item" style="background:rgba(15,23,42,0.7)">
+              <div class="metric-lbl">Probabilitas Obrolan</div>
+              <div class="metric-val" id="n2ChatterProb" style="color:var(--accent-emerald)">0%</div>
+            </div>
+          </div>
+          <div class="progress-bar-bg">
+            <div class="progress-bar-fill" id="n2ProbBar"></div>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <!-- Grafik Garis Real-Time 60 Detik -->
+    <section class="chart-card">
+      <div class="chart-header">
+        <div>
+          <h2 class="chart-title">Grafik Kebisingan Real-Time (60 Detik Terakhir)</h2>
+          <p class="node-loc">Perbandingan Tingkat Kebisingan Zona Depan vs Zona Belakang Ruang Kelas</p>
+        </div>
+        <div class="chart-legend">
+          <div class="legend-item">
+            <div class="legend-color" style="background:var(--accent-cyan)"></div>
+            <span>Edge 1 (Depan)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background:var(--accent-purple)"></div>
+            <span>Edge 2 (Belakang)</span>
+          </div>
+          <div class="legend-item">
+            <div class="legend-color" style="background:var(--accent-rose); border-top: 2px dashed var(--accent-rose)"></div>
+            <span>Ambang Batas (Threshold)</span>
+          </div>
+        </div>
+      </div>
+      <div class="chart-container">
+        <canvas id="noiseChart"></canvas>
+      </div>
+    </section>
+
+    <!-- Panel Kontrol 2 Arah & Preset Mode -->
+    <section class="control-card">
+      <div>
+        <div class="control-section-title">⚙️ Kontrol Batas Ambang Kebisingan (Threshold dB)</div>
+        <p class="node-loc" style="margin-bottom:12px;">Kirim batas desibel secara real-time ke Wokwi ESP32 & Web Mic HP.</p>
+        <div class="preset-buttons">
+          <button class="btn-preset" onclick="setPresetMode(60.0, 'ujian')">📝 Mode Ujian (60 dB)</button>
+          <button class="btn-preset" onclick="setPresetMode(75.0, 'belajar')">📖 Mode Belajar (75 dB)</button>
+          <button class="btn-preset" onclick="setPresetMode(85.0, 'diskusi')">💬 Mode Diskusi (85 dB)</button>
+        </div>
+        <div class="slider-row">
+          <input type="range" class="slider-range" id="thresholdSlider" min="45" max="95" step="1" value="75" oninput="updateThresholdLabel(this.value)">
+          <span class="threshold-badge" id="thresholdLabel">75.0 dB</span>
+          <button class="btn-action" onclick="applyThreshold()">Terapkan</button>
+        </div>
+      </div>
+
+      <div>
+        <div class="control-section-title">🎛️ Perintah Aktuator & Simulasi Mandiri</div>
+        <p class="node-loc" style="margin-bottom:12px;">Kontrol buzzer alarm lokal di ESP32 atau jalankan simulator web mandiri.</p>
+        <div style="display:flex; flex-wrap:wrap; gap:10px;">
+          <button class="btn-action btn-mute" id="btnMuteToggle" onclick="toggleMuteBuzzer()">
+            <span>🔔</span> <span id="muteBtnText">Mute Buzzer Alarm</span>
+          </button>
+          <button class="btn-action btn-sim" id="btnSimToggle" onclick="toggleWebSimulator()">
+            <span>🚀</span> <span id="simBtnText">Mulai Simulator Demo</span>
+          </button>
+        </div>
+        <div id="simNotice" style="display:none; font-size:12px; color:var(--accent-purple); margin-top:10px;">
+          * Simulator Demo internal aktif (menghasilkan telemetri sintetis ke HiveMQ untuk presentasi).
+        </div>
+      </div>
+    </section>
+
+    <!-- Tabel Riwayat Alarm & Export CSV -->
+    <section class="logs-card">
+      <div class="logs-header">
+        <div>
+          <h2 class="chart-title">🚨 Riwayat Peringatan & Alarm Kebisingan</h2>
+          <p class="node-loc">Catatan insiden kebisingan melampaui batas atau obrolan gaduh yang terdeteksi.</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn-preset" onclick="exportCsv()">📥 Export CSV (Laporan PPT)</button>
+          <button class="btn-preset" onclick="clearLogs()">🗑️ Bersihkan</button>
+        </div>
+      </div>
+      <div class="table-container">
+        <table>
+          <thead>
+            <tr>
+              <th>WAKTU</th>
+              <th>NODE</th>
+              <th>LOKASI</th>
+              <th>LEVEL dB</th>
+              <th>OBROLAN (%)</th>
+              <th>EVENT / PESAN</th>
+            </tr>
+          </thead>
+          <tbody id="alarmTableBody">
+            <tr>
+              <td colspan="6" style="text-align:center; color:var(--text-muted); padding:20px;">
+                Belum ada insiden alarm kebisingan tercatat. Kelas dalam batas aman.
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <footer>
+      Tugas Besar Praktik IoT Multikomunikasi • Kelompok 7 (Sistem Pemantauan Kebisingan Ruang Belajar/Kelas)
+    </footer>
+  </div>
+
+  <script>
+    // ========================================================
+    // KONFIGURASI GLOBAL MQTT & KONTRAK TOPIK
+    // ========================================================
+    const BROKER_HOST = "broker.hivemq.com";
+    const BROKER_PORT = 8884; // WebSocket SSL Port HiveMQ
+    const BROKER_PATH = "/mqtt";
+    const CLIENT_ID = "Dashboard_Kelompok7_" + Math.random().toString(16).substr(2, 8);
+
+    // Topik-topik Standar
+    const TOPIC_SUBSCRIBE_TELEMETRY = "kelas/kebisingan/+/telemetry";
+    const TOPIC_SUBSCRIBE_ALERT = "kelas/kebisingan/+/alert";
+    const TOPIC_SUBSCRIBE_ROOM = "kelas/kebisingan/room/status";
+    const TOPIC_NODE1_CONTROL = "kelas/kebisingan/node1/control";
+    const TOPIC_NODE2_CONTROL = "kelas/kebisingan/node2/control";
+    const TOPIC_GLOBAL_CONTROL = "kelas/kebisingan/control";
+
+    // State Internal Dashboard
+    let mqttClient = null;
+    let packetCounter = 0;
+    let currentThreshold = 75.0;
+    let isMuted = false;
+    let simInterval = null;
+
+    // Data Per Node (Ternormalisasi)
+    const nodeState = {
+      node1: { db: null, db_instant: null, rms: null, peak: null, status: "STANDBY", lastSeen: null, device_id: "NODE_01" },
+      node2: { db: null, rms: null, peak: null, vocal_ratio: null, chatter_prob: 0, classification: "STANDBY", lastSeen: null, device_id: "HP_02" }
+    };
+
+    // Filter Deduplikasi (Mencegah ganda saat Edge 2 publish ke node2 & hp2 sekaligus)
+    const dedupLog = {
+      node1: { sig: "", time: 0 },
+      node2: { sig: "", time: 0 }
+    };
+
+    // Log Alarm untuk Riwayat & Export CSV
+    const alarmLogs = [];
+
+    // ========================================================
+    // CHART.JS INITIALIZATION (REAL-TIME 60 DETIK)
+    // ========================================================
+    const MAX_DATA_POINTS = 60;
+    const chartLabels = Array(MAX_DATA_POINTS).fill("");
+    const dataNode1 = Array(MAX_DATA_POINTS).fill(null);
+    const dataNode2 = Array(MAX_DATA_POINTS).fill(null);
+    const dataThreshold = Array(MAX_DATA_POINTS).fill(currentThreshold);
+
+    const ctx = document.getElementById("noiseChart").getContext("2d");
+    const noiseChart = new Chart(ctx, {
+      type: "line",
+      data: {
+        labels: chartLabels,
+        datasets: [
+          {
+            label: "Edge 1 (Depan Kelas)",
+            data: dataNode1,
+            borderColor: "#06b6d4",
+            backgroundColor: "rgba(6, 182, 212, 0.08)",
+            borderWidth: 2.5,
+            tension: 0.35,
+            pointRadius: 0,
+            fill: true
+          },
+          {
+            label: "Edge 2 (Belakang Kelas)",
+            data: dataNode2,
+            borderColor: "#8b5cf6",
+            backgroundColor: "rgba(139, 92, 246, 0.08)",
+            borderWidth: 2.5,
+            tension: 0.35,
+            pointRadius: 0,
+            fill: true
+          },
+          {
+            label: "Ambang Batas (Threshold)",
+            data: dataThreshold,
+            borderColor: "#f43f5e",
+            borderWidth: 2,
+            borderDash: [6, 6],
+            pointRadius: 0,
+            fill: false
+          }
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 250 },
+        scales: {
+          x: {
+            display: false,
+            grid: { display: false }
+          },
+          y: {
+            min: 30,
+            max: 100,
+            ticks: {
+              color: "#94a3b8",
+              font: { family: "'JetBrains Mono', monospace", size: 11 },
+              callback: (val) => val + " dB"
+            },
+            grid: {
+              color: "rgba(255, 255, 255, 0.05)"
+            }
+          }
+        },
+        plugins: {
+          legend: { display: false }
+        }
+      }
+    });
+
+    // ========================================================
+    // LOGIKA NORMALIZER & DEDUPLIKASI
+    // ========================================================
+    function normalizeTelemetry(topic, raw) {
+      const topicLower = topic.toLowerCase();
+      const devId = (raw.device_id || "").toUpperCase();
+
+      const isNode1 = topicLower.includes("node1") || topicLower.includes("hp1") || devId.includes("NODE_01") || devId.includes("HP_01");
+      const slot = isNode1 ? "node1" : "node2";
+
+      // Normalisasi dB
+      let dbVal = raw.db ?? raw.db_smooth ?? raw.db_instant ?? 40.0;
+      dbVal = Number(Number(dbVal).toFixed(1));
+
+      // Normalisasi Peak
+      let peakVal = 0.0;
+      if (raw.peak !== undefined) {
+        peakVal = Number(raw.peak);
+      } else if (raw.peak_to_peak !== undefined) {
+        peakVal = Number((raw.peak_to_peak / 4095.0).toFixed(2));
+      }
+
+      return {
+        slot: slot,
+        device_id: raw.device_id || (isNode1 ? "NODE_01" : "HP_02"),
+        device_name: raw.device_name || (isNode1 ? "ESP32_Edge_Sound_Sensor" : "HP2_Edge_Chatter_Classifier"),
+        location: raw.location || (isNode1 ? "Ruang_Kelas_Depan" : "Ruang_Kelas_Belakang"),
+        db: dbVal,
+        db_instant: Number((raw.db_instant ?? dbVal).toFixed(1)),
+        rms: Number((raw.rms ?? 0).toFixed(4)),
+        peak: peakVal,
+        threshold_db: Number(raw.threshold_db ?? currentThreshold),
+        status: raw.status || (dbVal >= currentThreshold ? "SANGAT BISING" : "KONDUSIF"),
+        alert: Boolean(raw.alert || (dbVal >= currentThreshold)),
+        chatter_detected: Boolean(raw.chatter_detected),
+        vocal_energy_ratio: Number((raw.vocal_energy_ratio ?? 0).toFixed(1)),
+        chatter_prob: Number(raw.chatter_prob ?? 0),
+        classification: raw.classification || (isNode1 ? "SENSOR_DB_UMUM" : "HENING"),
+        timestamp: raw.timestamp || new Date().toISOString()
+      };
+    }
+
+    function shouldAcceptTelemetry(norm) {
+      const slot = norm.slot;
+      const now = Date.now();
+      const sig = `${norm.device_id}|${norm.timestamp}|${norm.db}`;
+      const prev = dedupLog[slot];
+
+      if (prev.sig === sig) return false;
+      if (prev.deviceId === norm.device_id && (now - prev.time) < 400) return false;
+
+      dedupLog[slot] = { sig: sig, deviceId: norm.device_id, time: now };
+      return true;
+    }
+
+    // ========================================================
+    // UPDATE UI DAN STATUS FUSION
+    // ========================================================
+    function updateDashboard() {
+      // 1. Update Edge 1 (Depan Kelas)
+      const n1 = nodeState.node1;
+      if (n1.db !== null) {
+        const n1DbEl = document.getElementById("n1DbDisplay");
+        n1DbEl.innerHTML = `${n1.db.toFixed(1)} <span class="db-main-unit">dB</span>`;
+        n1DbEl.style.color = n1.db >= currentThreshold ? "var(--accent-rose)" : (n1.db >= 65 ? "var(--accent-amber)" : "var(--accent-emerald)");
+
+        document.getElementById("n1DevName").innerText = n1.device_id;
+        document.getElementById("n1Rms").innerText = n1.rms !== null ? n1.rms : "--";
+        document.getElementById("n1Peak").innerText = n1.peak !== null ? n1.peak : "--";
+        document.getElementById("n1DbInstant").innerText = n1.db_instant !== null ? n1.db_instant + " dB" : "-- dB";
+
+        const pill1 = document.getElementById("n1StatusPill");
+        pill1.innerText = n1.status;
+        pill1.style.color = n1.db >= currentThreshold ? "var(--accent-rose)" : "var(--accent-emerald)";
+
+        document.getElementById("n1Heartbeat").innerText = "Online • Baru saja";
+      }
+
+      // 2. Update Edge 2 (Belakang Kelas - Deteksi Obrolan)
+      const n2 = nodeState.node2;
+      if (n2.db !== null) {
+        const n2DbEl = document.getElementById("n2DbDisplay");
+        n2DbEl.innerHTML = `${n2.db.toFixed(1)} <span class="db-main-unit">dB</span>`;
+        n2DbEl.style.color = n2.db >= currentThreshold ? "var(--accent-rose)" : (n2.db >= 65 ? "var(--accent-amber)" : "var(--accent-purple)");
+
+        document.getElementById("n2DevName").innerText = n2.device_id;
+        document.getElementById("n2Category").innerText = n2.classification;
+        document.getElementById("n2VocalRatio").innerText = (n2.vocal_ratio ?? 0) + " %";
+        document.getElementById("n2ChatterProb").innerText = (n2.chatter_prob ?? 0) + " %";
+
+        const bar = document.getElementById("n2ProbBar");
+        bar.style.width = (n2.chatter_prob ?? 0) + "%";
+        if (n2.chatter_prob > 65) {
+          bar.style.background = n2.db >= currentThreshold ? "var(--accent-rose)" : "linear-gradient(90deg, #f59e0b, #ef4444)";
+        } else {
+          bar.style.background = "linear-gradient(90deg, var(--accent-cyan), var(--accent-emerald))";
+        }
+
+        const pill2 = document.getElementById("n2StatusPill");
+        pill2.innerText = n2.classification;
+        pill2.style.color = n2.db >= currentThreshold ? "var(--accent-rose)" : (n2.chatter_prob >= 50 ? "var(--accent-amber)" : "var(--accent-purple)");
+
+        document.getElementById("n2Heartbeat").innerText = "Online • Baru saja";
+      }
+
+      // 3. Hitung Room Fusion
+      const validDbs = [];
+      if (n1.db !== null) validDbs.push(n1.db);
+      if (n2.db !== null) validDbs.push(n2.db);
+
+      const avgDb = validDbs.length > 0 ? (validDbs.reduce((a, b) => a + b, 0) / validDbs.length) : 0;
+      document.getElementById("heroAvgDb").innerText = validDbs.length > 0 ? avgDb.toFixed(1) : "--";
+
+      const hero = document.getElementById("heroBanner");
+      const heroText = document.getElementById("heroStatusText");
+      const heroDesc = document.getElementById("heroDesc");
+
+      const isAlarm = (n1.db >= currentThreshold) || (n2.db >= currentThreshold) || (n2.classification === "OBROLAN_GADUH");
+
+      if (isAlarm) {
+        hero.className = "hero-banner border-rose";
+        heroText.innerHTML = `<span>🚨</span> <span style="color:var(--accent-rose)">SANGAT BISING — ALARM KELAS AKTIF</span>`;
+        heroDesc.innerText = `Tingkat kebisingan melampaui batas aman (${currentThreshold} dB)! Harap kondusifkan ruang kelas.`;
+      } else if (n2.chatter_prob >= 50 && n2.db >= 62.0) {
+        hero.className = "hero-banner border-amber";
+        heroText.innerHTML = `<span>🗣️</span> <span style="color:var(--accent-amber)">PERINGATAN — OBROLAN SISWA TERDETEKSI</span>`;
+        heroDesc.innerText = `Terdeteksi aktivitas obrolan di bagian belakang kelas (Probabilitas Obrolan: ${n2.chatter_prob}%). Pantau agar tidak mengganggu.`;
+      } else if (avgDb < 52.0 && (n2.chatter_prob ?? 0) < 30) {
+        hero.className = "hero-banner border-emerald";
+        heroText.innerHTML = `<span>✨</span> <span style="color:var(--accent-emerald)">SANGAT TENANG — SUASANA FOKUS / UJIAN</span>`;
+        heroDesc.innerText = "Suasana kelas sangat hening dan kondusif, ideal untuk pelaksanaan ujian atau fokus belajar mandiri.";
+      } else {
+        hero.className = "hero-banner border-cyan";
+        heroText.innerHTML = `<span>✅</span> <span style="color:var(--accent-cyan)">KONDUSIF — PEMBELAJARAN BERLANGSUNG</span>`;
+        heroDesc.innerText = "Tingkat suara berada dalam batas wajar aktivitas pembelajaran di ruang kelas.";
+      }
+
+      // 4. Update Grafik Line Chart
+      const nowLabel = new Date().toLocaleTimeString();
+      chartLabels.push(nowLabel);
+      if (chartLabels.length > MAX_DATA_POINTS) chartLabels.shift();
+
+      dataNode1.push(n1.db);
+      if (dataNode1.length > MAX_DATA_POINTS) dataNode1.shift();
+
+      dataNode2.push(n2.db);
+      if (dataNode2.length > MAX_DATA_POINTS) dataNode2.shift();
+
+      dataThreshold.push(currentThreshold);
+      if (dataThreshold.length > MAX_DATA_POINTS) dataThreshold.shift();
+
+      noiseChart.update("none");
+    }
+
+    // ========================================================
+    // LOGIKA MQTT CONNECTION (PAHO MQTT WEBSOCKET)
+    // ========================================================
+    function connectMqtt() {
+      const statusEl = document.getElementById("mqttStatus");
+      const dotEl = document.getElementById("mqttDot");
+
+      statusEl.innerText = `Menghubungkan ke ${BROKER_HOST}...`;
+      mqttClient = new Paho.MQTT.Client(BROKER_HOST, BROKER_PORT, BROKER_PATH, CLIENT_ID);
+
+      mqttClient.onConnectionLost = (resp) => {
+        dotEl.className = "dot-live";
+        statusEl.innerText = "Terputus. Mencoba reconnect...";
+        setTimeout(connectMqtt, 3000);
+      };
+
+      mqttClient.onMessageArrived = (message) => {
+        packetCounter++;
+        document.getElementById("packetCount").innerText = packetCounter;
+
+        const topic = message.destinationName;
+        const payloadStr = message.payloadString;
+
+        // Tangkap Topik Alarm Langsung
+        if (topic.includes("/alert")) {
+          try {
+            const alertData = JSON.parse(payloadStr);
+            recordAlarmEvent(topic, alertData);
+          } catch(e) {}
+          return;
+        }
+
+        // Tangkap Telemetri
+        try {
+          const raw = JSON.parse(payloadStr);
+          const norm = normalizeTelemetry(topic, raw);
+
+          if (!shouldAcceptTelemetry(norm)) return; // Tolak paket ganda
+
+          // Simpan ke state
+          if (norm.slot === "node1") {
+            nodeState.node1.db = norm.db;
+            nodeState.node1.db_instant = norm.db_instant;
+            nodeState.node1.rms = norm.rms;
+            nodeState.node1.peak = norm.peak;
+            nodeState.node1.status = norm.status;
+            nodeState.node1.device_id = norm.device_id;
+            nodeState.node1.lastSeen = Date.now();
+          } else {
+            nodeState.node2.db = norm.db;
+            nodeState.node2.rms = norm.rms;
+            nodeState.node2.peak = norm.peak;
+            nodeState.node2.vocal_ratio = norm.vocal_energy_ratio;
+            nodeState.node2.chatter_prob = norm.chatter_prob;
+            nodeState.node2.classification = norm.classification;
+            nodeState.node2.device_id = norm.device_id;
+            nodeState.node2.lastSeen = Date.now();
+          }
+
+          // Jika ada alarm di dalam telemetry
+          if (norm.alert) {
+            recordAlarmEvent(topic, {
+              device_id: norm.device_id,
+              location: norm.location,
+              event: norm.slot === "node2" ? "CHATTER_NOISE_EXCEEDED" : "NOISE_EXCEEDED",
+              db_level: norm.db,
+              chatter_prob: norm.chatter_prob,
+              message: `Kebisingan di ${norm.location} mencapai ${norm.db} dB (Ambang: ${currentThreshold} dB)`
+            });
+          }
+
+          updateDashboard();
+
+        } catch (err) {
+          console.warn("Gagal parse MQTT payload:", err);
+        }
+      };
+
+      mqttClient.connect({
+        useSSL: true,
+        timeout: 5,
+        keepAliveInterval: 30,
+        onSuccess: () => {
+          dotEl.className = "dot-live dot-connected";
+          statusEl.innerText = "Terhubung (HiveMQ WSS)";
+
+          mqttClient.subscribe(TOPIC_SUBSCRIBE_TELEMETRY);
+          mqttClient.subscribe(TOPIC_SUBSCRIBE_ALERT);
+          mqttClient.subscribe(TOPIC_SUBSCRIBE_ROOM);
+          console.log("Subscribed to MQTT topics.");
+        },
+        onFailure: (err) => {
+          dotEl.className = "dot-live";
+          statusEl.innerText = "Gagal Konek. Ulang...";
+          setTimeout(connectMqtt, 4000);
+        }
+      });
+    }
+
+    // ========================================================
+    // PERINTAH KONTROL 2 ARAH (PUBLISH CONTROL)
+    // ========================================================
+    function publishControlCommand(cmdObj) {
+      if (!mqttClient || !mqttClient.isConnected()) {
+        alert("MQTT belum terhubung ke broker!");
+        return;
+      }
+      const jsonStr = JSON.stringify(cmdObj);
+
+      // Kirim ke kontrol Node 1, Node 2, dan Global Control
+      const m1 = new Paho.MQTT.Message(jsonStr);
+      m1.destinationName = TOPIC_NODE1_CONTROL;
+      mqttClient.send(m1);
+
+      const m2 = new Paho.MQTT.Message(jsonStr);
+      m2.destinationName = TOPIC_NODE2_CONTROL;
+      mqttClient.send(m2);
+
+      const mGlobal = new Paho.MQTT.Message(jsonStr);
+      mGlobal.destinationName = TOPIC_GLOBAL_CONTROL;
+      mqttClient.send(mGlobal);
+
+      console.log("Perintah kontrol terkirim:", jsonStr);
+    }
+
+    function updateThresholdLabel(val) {
+      document.getElementById("thresholdLabel").innerText = Number(val).toFixed(1) + " dB";
+    }
+
+    function applyThreshold() {
+      const val = parseFloat(document.getElementById("thresholdSlider").value);
+      currentThreshold = val;
+      publishControlCommand({ set_threshold: val });
+
+      // Update garis threshold di chart
+      dataThreshold.fill(currentThreshold);
+      noiseChart.update();
+    }
+
+    function setPresetMode(dbVal, modeName) {
+      document.getElementById("thresholdSlider").value = dbVal;
+      updateThresholdLabel(dbVal);
+      currentThreshold = dbVal;
+      publishControlCommand({ set_threshold: dbVal, mode: modeName });
+
+      dataThreshold.fill(currentThreshold);
+      noiseChart.update();
+    }
+
+    function toggleMuteBuzzer() {
+      isMuted = !isMuted;
+      publishControlCommand({ mute: isMuted });
+
+      const btn = document.getElementById("btnMuteToggle");
+      const btnText = document.getElementById("muteBtnText");
+      const badge = document.getElementById("muteIndicatorBadge");
+
+      if (isMuted) {
+        btn.className = "btn-action btn-mute is-muted";
+        btnText.innerText = "Unmute Buzzer Alarm";
+        badge.style.display = "inline-flex";
+      } else {
+        btn.className = "btn-action btn-mute";
+        btnText.innerText = "Mute Buzzer Alarm";
+        badge.style.display = "none";
+      }
+    }
+
+    // ========================================================
+    // PENCATATAN ALARM & EXPORT CSV
+    // ========================================================
+    function recordAlarmEvent(topic, data) {
+      const timeStr = new Date().toLocaleTimeString();
+      const devId = data.device_id || (topic.includes("node1") ? "NODE_01" : "HP_02");
+      const loc = data.location || (topic.includes("node1") ? "Ruang_Kelas_Depan" : "Ruang_Kelas_Belakang");
+      const db = data.db_level ?? (data.db ?? "--");
+      const prob = data.chatter_prob !== undefined ? data.chatter_prob + "%" : "-";
+      const msg = data.message || data.event || "Kebisingan Melebihi Batas";
+
+      // Hindari duplikasi alarm yang sama dalam 3 detik
+      if (alarmLogs.length > 0) {
+        const last = alarmLogs[0];
+        if (last.device_id === devId && (Date.now() - last.rawTime) < 3000) return;
+      }
+
+      alarmLogs.unshift({
+        time: timeStr,
+        rawTime: Date.now(),
+        device_id: devId,
+        location: loc,
+        db: db,
+        prob: prob,
+        msg: msg
+      });
+
+      if (alarmLogs.length > 50) alarmLogs.pop();
+      renderAlarmTable();
+    }
+
+    function renderAlarmTable() {
+      const tbody = document.getElementById("alarmTableBody");
+      if (alarmLogs.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="6" style="text-align:center; color:var(--text-muted); padding:20px;">
+              Belum ada insiden alarm kebisingan tercatat. Kelas dalam batas aman.
+            </td>
+          </tr>`;
+        return;
+      }
+
+      tbody.innerHTML = alarmLogs.map(log => `
+        <tr>
+          <td>${log.time}</td>
+          <td><strong style="color:var(--accent-cyan)">${log.device_id}</strong></td>
+          <td>${log.location}</td>
+          <td><span class="tag-danger">${log.db} dB</span></td>
+          <td>${log.prob}</td>
+          <td>${log.msg}</td>
+        </tr>
+      `).join("");
+    }
+
+    function clearLogs() {
+      alarmLogs.length = 0;
+      renderAlarmTable();
+    }
+
+    function exportCsv() {
+      if (alarmLogs.length === 0) {
+        alert("Belum ada data alarm untuk diexport!");
+        return;
+      }
+
+      let csv = "Waktu,Device ID,Lokasi,Tingkat dB,Probabilitas Obrolan,Pesan Insiden\n";
+      alarmLogs.forEach(row => {
+        csv += `"${row.time}","${row.device_id}","${row.location}","${row.db}","${row.prob}","${row.msg}"\n`;
+      });
+
+      const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `riwayat_kebisingan_kelas_${new Date().toISOString().slice(0, 10)}.csv`;
+      link.click();
+    }
+
+    // ========================================================
+    // SIMULATOR WEB INTERNAL (UNTUK DEMO MANDIRI)
+    // ========================================================
+    function toggleWebSimulator() {
+      const btn = document.getElementById("btnSimToggle");
+      const btnText = document.getElementById("simBtnText");
+      const notice = document.getElementById("simNotice");
+
+      if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
+        btnText.innerText = "Mulai Simulator Demo";
+        notice.style.display = "none";
+      } else {
+        btnText.innerText = "Hentikan Simulator";
+        notice.style.display = "block";
+
+        let tick = 0;
+        simInterval = setInterval(() => {
+          tick++;
+          const phase = ((Math.floor(tick / 10)) % 4) + 1;
+
+          // Simulasi Node 1
+          let n1Db = 45 + Math.random() * 5;
+          if (phase === 2) n1Db = 68 + Math.random() * 6;
+          if (phase === 4) n1Db = 78 + Math.random() * 6;
+
+          const p1 = {
+            device_id: "NODE_01",
+            device_name: "ESP32_Edge_Sound_Sensor",
+            location: "Ruang_Kelas_Depan",
+            peak_to_peak: Math.round(n1Db * 20),
+            rms: Number((n1Db / 1000).toFixed(4)),
+            db_instant: Number((n1Db + 1).toFixed(1)),
+            db_smooth: Number(n1Db.toFixed(1)),
+            status: n1Db >= currentThreshold ? "SANGAT BISING" : "KONDUSIF",
+            threshold_db: currentThreshold,
+            alert: n1Db >= currentThreshold,
+            timestamp: new Date().toISOString()
+          };
+
+          // Simulasi Node 2 (AI Obrolan)
+          let n2Db = 42 + Math.random() * 5;
+          let vocal = 18 + Math.random() * 8;
+          let prob = Math.round(vocal * 0.4);
+          let cls = "HENING";
+
+          if (phase === 3) {
+            n2Db = 71 + Math.random() * 5;
+            vocal = 75 + Math.random() * 12;
+            prob = Math.min(96, Math.round(vocal * 0.95));
+            cls = "OBROLAN_DISKUSI";
+          } else if (phase === 4) {
+            n2Db = 81 + Math.random() * 6;
+            vocal = 82 + Math.random() * 10;
+            prob = 95;
+            cls = "OBROLAN_GADUH";
+          }
+
+          const p2 = {
+            device_id: "HP_02",
+            device_name: "HP2_Edge_Chatter_Classifier",
+            location: "Ruang_Kelas_Belakang",
+            rms: Number((n2Db / 900).toFixed(4)),
+            peak: Number((n2Db / 200).toFixed(2)),
+            db: Number(n2Db.toFixed(1)),
+            threshold_db: currentThreshold,
+            chatter_detected: prob > 50,
+            vocal_energy_ratio: Number(vocal.toFixed(1)),
+            chatter_prob: prob,
+            classification: cls,
+            status: cls,
+            alert: n2Db >= currentThreshold,
+            timestamp: new Date().toISOString()
+          };
+
+          // Kirim via MQTT jika terhubung
+          if (mqttClient && mqttClient.isConnected()) {
+            const m1 = new Paho.MQTT.Message(JSON.stringify(p1));
+            m1.destinationName = "kelas/kebisingan/node1/telemetry";
+            mqttClient.send(m1);
+
+            const m2 = new Paho.MQTT.Message(JSON.stringify(p2));
+            m2.destinationName = "kelas/kebisingan/node2/telemetry";
+            mqttClient.send(m2);
+          }
+        }, 1000);
+      }
+    }
+
+    // Inisialisasi awal saat halaman selesai dimuat
+    window.addEventListener("DOMContentLoaded", () => {
+      connectMqtt();
+      updateDashboard();
+    });
+  </script>
+</body>
+</html>
