@@ -790,6 +790,9 @@
           <button class="btn-action btn-sim" id="btnSimToggle" onclick="toggleWebSimulator()">
             <span>🚀</span> <span id="simBtnText">Mulai Simulator Demo</span>
           </button>
+          <button class="btn-preset" onclick="resetDashboardDisplay()" title="Bersihkan tampilan dan grafik kembali ke standby">
+            <span>🔄</span> <span>Reset Layar</span>
+          </button>
         </div>
         <div id="simNotice" style="display:none; font-size:12px; color:var(--accent-purple); margin-top:10px;">
           * Simulator Demo internal aktif (menghasilkan telemetri sintetis ke HiveMQ untuk presentasi).
@@ -1362,7 +1365,17 @@
         clearInterval(simInterval);
         simInterval = null;
         btnText.innerText = "Mulai Simulator Demo";
-        notice.style.display = "none";
+        notice.style.display = "block";
+        notice.style.color = "var(--accent-amber)";
+        notice.innerHTML = "⏸️ <strong>Simulator Demo dihentikan.</strong> Pengiriman data sintetis selesai.";
+
+        // Berikan feedback visual seketika bahwa simulator telah berhenti
+        document.getElementById("n1Heartbeat").innerText = "⏸️ Simulator Berhenti";
+        document.getElementById("n2Heartbeat").innerText = "⏸️ Simulator Berhenti";
+
+        setTimeout(() => {
+          if (!simInterval) notice.style.display = "none";
+        }, 4000);
       } else {
         btnText.innerText = "Hentikan Simulator";
         notice.style.display = "block";
@@ -1438,6 +1451,95 @@
           }
         }, 1000);
       }
+    }
+
+
+    // ========================================================
+    // WATCHDOG HEARTBEAT & RESET LAYAR
+    // ========================================================
+    function checkHeartbeatWatchdog() {
+      const now = Date.now();
+      const TIMEOUT_MS = 3500; // Di atas 3.5 detik tanpa paket baru -> tandai offline/berhenti
+
+      // Check Edge 1
+      if (nodeState.node1.lastSeen) {
+        const diffSec = Math.floor((now - nodeState.node1.lastSeen) / 1000);
+        const hb1 = document.getElementById("n1Heartbeat");
+        const pill1 = document.getElementById("n1StatusPill");
+        if (diffSec > 3) {
+          hb1.innerText = `🔴 Offline • ${diffSec}s lalu`;
+          hb1.style.color = "var(--text-muted)";
+          pill1.innerText = "STANDBY";
+          pill1.style.color = "var(--text-muted)";
+          pill1.style.borderColor = "var(--card-border)";
+        }
+      }
+
+      // Check Edge 2
+      if (nodeState.node2.lastSeen) {
+        const diffSec = Math.floor((now - nodeState.node2.lastSeen) / 1000);
+        const hb2 = document.getElementById("n2Heartbeat");
+        const pill2 = document.getElementById("n2StatusPill");
+        if (diffSec > 3) {
+          hb2.innerText = `🔴 Offline • ${diffSec}s lalu`;
+          hb2.style.color = "var(--text-muted)";
+          pill2.innerText = "STANDBY";
+          pill2.style.color = "var(--text-muted)";
+          pill2.style.borderColor = "var(--card-border)";
+        }
+      }
+    }
+    setInterval(checkHeartbeatWatchdog, 1000);
+
+    function resetDashboardDisplay() {
+      if (simInterval) {
+        clearInterval(simInterval);
+        simInterval = null;
+        document.getElementById("simBtnText").innerText = "Mulai Simulator Demo";
+        document.getElementById("simNotice").style.display = "none";
+      }
+
+      // Reset state data
+      nodeState.node1 = { db: null, db_instant: null, rms: null, peak: null, status: "STANDBY", lastSeen: null, device_id: "NODE_01" };
+      nodeState.node2 = { db: null, rms: null, peak: null, vocal_ratio: null, chatter_prob: 0, classification: "STANDBY", lastSeen: null, device_id: "HP_02" };
+
+      // Reset tampilan Edge 1
+      const n1DbEl = document.getElementById("n1DbDisplay");
+      n1DbEl.innerHTML = `-- <span class="db-main-unit">dB</span>`;
+      n1DbEl.style.color = "var(--accent-emerald)";
+      document.getElementById("n1Rms").innerText = "--";
+      document.getElementById("n1Peak").innerText = "--";
+      document.getElementById("n1DbInstant").innerText = "-- dB";
+      document.getElementById("n1StatusPill").innerText = "STANDBY";
+      document.getElementById("n1StatusPill").style.color = "var(--accent-emerald)";
+      document.getElementById("n1Heartbeat").innerText = "Menunggu data...";
+
+      // Reset tampilan Edge 2
+      const n2DbEl = document.getElementById("n2DbDisplay");
+      n2DbEl.innerHTML = `-- <span class="db-main-unit">dB</span>`;
+      n2DbEl.style.color = "var(--accent-purple)";
+      document.getElementById("n2Category").innerText = "STANDBY";
+      document.getElementById("n2VocalRatio").innerText = "-- %";
+      document.getElementById("n2ChatterProb").innerText = "0%";
+      document.getElementById("n2ProbBar").style.width = "0%";
+      document.getElementById("n2StatusPill").innerText = "STANDBY";
+      document.getElementById("n2StatusPill").style.color = "var(--accent-purple)";
+      document.getElementById("n2Heartbeat").innerText = "Menunggu data...";
+
+      // Reset Hero Fusion
+      document.getElementById("heroAvgDb").innerText = "--";
+      const hero = document.getElementById("heroBanner");
+      hero.className = "hero-banner border-emerald";
+      document.getElementById("heroStatusText").innerHTML = `<span>✨</span> <span>SANGAT TENANG — MENUNGGU SENSOR</span>`;
+      document.getElementById("heroDesc").innerText = "Menunggu koneksi dan data suara dari perangkat Edge (Wokwi ESP32 / HP Android).";
+
+      // Reset Chart
+      for (let i = 0; i < MAX_DATA_POINTS; i++) {
+        dataNode1[i] = null;
+        dataNode2[i] = null;
+        dataThreshold[i] = currentThreshold;
+      }
+      noiseChart.update();
     }
 
     // Inisialisasi awal saat halaman selesai dimuat
