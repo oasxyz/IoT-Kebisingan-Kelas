@@ -23,6 +23,10 @@
     .btn:hover { background-color: #1d4ed8; }
     .btn-stop { background-color: #dc2626; }
     .btn-stop:hover { background-color: #b91c1c; }
+    .sim-bar { display: flex; gap: 6px; margin-top: 10px; }
+    .sim-btn { flex: 1; padding: 8px 4px; font-size: 11px; font-weight: 600; background: #0f172a; border: 1px solid #334155; color: #94a3b8; border-radius: 8px; cursor: pointer; transition: all 0.2s; }
+    .sim-btn:hover { background: #334155; color: #fff; }
+    .sim-btn.active { background: rgba(56, 189, 248, 0.2); border-color: #38bdf8; color: #38bdf8; }
     .status-text { margin-top: 14px; font-size: 12px; color: #94a3b8; }
     .log-box { margin-top: 20px; background: #090d16; border-radius: 8px; padding: 12px; text-align: left; font-family: monospace; font-size: 11px; height: 110px; overflow-y: auto; color: #64748b; border: 1px solid #1e293b; }
   </style>
@@ -41,6 +45,12 @@
     </div>
 
     <button class="btn" id="btnToggle" onclick="toggleMic()">🎤 Mulai Baca Mikrofon HP</button>
+    <div class="sim-bar">
+      <button class="sim-btn active" id="simLive" onclick="setMode('live')">Mic Asli</button>
+      <button class="sim-btn" id="simQuiet" onclick="setMode('quiet')">Sim: Hening</button>
+      <button class="sim-btn" id="simTeach" onclick="setMode('teach')">Sim: Dosen</button>
+      <button class="sim-btn" id="simLoud" onclick="setMode('loud')">Sim: Bising</button>
+    </div>
 
     <p class="status-text" id="mqttStatus">Status MQTT: Terputus</p>
 
@@ -51,6 +61,16 @@
 
   <script>
     let isRunning = false;
+    let activeMode = 'live'; // 'live', 'quiet', 'teach', 'loud'
+
+    function setMode(mode) {
+      activeMode = mode;
+      document.querySelectorAll('.sim-btn').forEach(b => b.classList.remove('active'));
+      const idMap = { live: 'simLive', quiet: 'simQuiet', teach: 'simTeach', loud: 'simLoud' };
+      const el = document.getElementById(idMap[mode]);
+      if (el) el.classList.add('active');
+      log(`Mode HP 1 diubah ke: ${mode}`);
+    }
     let audioContext = null;
     let analyser = null;
     let microphoneStream = null;
@@ -127,25 +147,34 @@
             initMqtt();
           }
 
-          // Minta Izin Audio HP Android
-          const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
-          microphoneStream = stream;
+          if (activeMode === 'live') {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+              throw new Error("Browser memblokir mikrofon pada koneksi HTTP LAN biasa (Non-HTTPS / Insecure Origin).");
+            }
+            // Minta Izin Audio HP Android
+            const stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+            microphoneStream = stream;
 
-          audioContext = new (window.AudioContext || window.webkitAudioContext)();
-          const source = audioContext.createMediaStreamSource(stream);
-          analyser = audioContext.createAnalyser();
-          analyser.fftSize = 512;
-          source.connect(analyser);
+            audioContext = new (window.AudioContext || window.webkitAudioContext)();
+            const source = audioContext.createMediaStreamSource(stream);
+            analyser = audioContext.createAnalyser();
+            analyser.fftSize = 512;
+            source.connect(analyser);
+            log("Izin mikrofon diberikan. Pengukuran audio asli dimulai.");
+          } else {
+            log(`Mode simulasi HP 1 aktif: ${activeMode}`);
+          }
 
           isRunning = true;
           btn.innerText = "⏹ Berhenti";
           btn.className = "btn btn-stop";
-          log("Izin mikrofon diberikan. Pengukuran dimulai.");
 
           intervalTimer = setInterval(processAudioAndPublish, 1000);
         } catch (err) {
-          alert("Gagal mengakses mikrofon: " + err.message);
-          log("Error mic: " + err.message);
+          alert("Gagal mengakses mikrofon: " + err.message + "\n\n💡 Otomatis dialihkan ke mode 'Sim: Dosen'.\n(Jika ingin menggunakan mic fisik asli, aktifkan 'chrome://flags/#unsafely-treat-insecure-origin-as-secure').");
+          log("Gagal mic: " + err.message + " -> Beralih ke simulasi Dosen.");
+          setMode('teach');
+          toggleMic();
         }
       } else {
         stopMic();
@@ -170,27 +199,43 @@
     }
 
     function processAudioAndPublish() {
-      if (!analyser) return;
-
-      const bufferLength = analyser.fftSize;
-      const dataArray = new Float32Array(bufferLength);
-      analyser.getFloatTimeDomainData(dataArray);
-
-      // Data Processing 1: Hitung RMS (Root Mean Square)
-      let sumSquares = 0.0;
+      let rms = 0.0;
       let peak = 0.0;
-      for (let i = 0; i < bufferLength; i++) {
-        const val = dataArray[i];
-        sumSquares += val * val;
-        if (Math.abs(val) > peak) peak = Math.abs(val);
-      }
-      const rms = Math.sqrt(sumSquares / bufferLength);
+      let db = 40.0;
 
-      // Konversi RMS ke estimasi dB SPL
-      // dB = 20 * log10(rms / reference)
-      let db = 20 * Math.log10(rms + 0.00001) + 94; // 94 dB kalibrasi standar SPL
-      if (db < 30) db = 30;
-      if (db > 105) db = 105;
+      if (activeMode === 'live') {
+        if (!analyser) return;
+
+        const bufferLength = analyser.fftSize;
+        const dataArray = new Float32Array(bufferLength);
+        analyser.getFloatTimeDomainData(dataArray);
+
+        // Data Processing 1: Hitung RMS (Root Mean Square)
+        let sumSquares = 0.0;
+        for (let i = 0; i < bufferLength; i++) {
+          const val = dataArray[i];
+          sumSquares += val * val;
+          if (Math.abs(val) > peak) peak = Math.abs(val);
+        }
+        rms = Math.sqrt(sumSquares / bufferLength);
+
+        // Konversi RMS ke estimasi dB SPL
+        db = 20 * Math.log10(rms + 0.00001) + 94; // 94 dB kalibrasi standar SPL
+        if (db < 30) db = 30;
+        if (db > 105) db = 105;
+      } else if (activeMode === 'quiet') {
+        db = 38.0 + Math.random() * 5.0;
+        rms = Number((db / 1100).toFixed(4));
+        peak = Number((db / 350).toFixed(2));
+      } else if (activeMode === 'teach') {
+        db = 68.0 + Math.random() * 6.0;
+        rms = Number((db / 750).toFixed(4));
+        peak = Number((db / 150).toFixed(2));
+      } else if (activeMode === 'loud') {
+        db = 82.0 + Math.random() * 7.0;
+        rms = Number((db / 500).toFixed(4));
+        peak = Number((db / 90).toFixed(2));
+      }
 
       // Klasifikasi Status
       let status = "KONDUSIF";

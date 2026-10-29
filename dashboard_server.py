@@ -211,6 +211,12 @@ def run_server(port: int = 8000, enable_mqtt: bool = True):
     print(f"  Akses Web Edge Microphone (Buka dari Chrome Smartphone):")
     print(f"  📱 HP 1 (Depan)    : http://{local_ip}:{port}/client_mobile_hp1/hp1_web_mic.html")
     print(f"  📱 HP 2 (Belakang) : http://{local_ip}:{port}/client_mobile_hp2/hp2_web_mic.html")
+    print("-" * 70)
+    print("  💡 Tips Akses Mikrofon Smartphone (Web Audio API):")
+    print("     1. Gunakan tombol 'Simulasi' yang tersedia langsung di layar HP; ATAU")
+    print("     2. Untuk mikrofon fisik asli, aktifkan izin LAN di Chrome Android:")
+    print("        Buka chrome://flags di HP -> cari 'unsafely-treat-insecure-origin-as-secure'")
+    print(f"        -> masukkan 'http://{local_ip}:{port}' -> Enable & Relaunch.")
     print("=" * 70)
     print("  Tekan Ctrl+C untuk menghentikan server.\n")
 

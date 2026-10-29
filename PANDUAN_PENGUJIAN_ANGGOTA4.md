@@ -64,7 +64,11 @@ Pilih skenario pengujian yang paling sesuai dengan kebutuhan Anda:
 5. **Buka di HP 2 (Posisi Belakang Kelas - Deteksi Obrolan)**:
    - Buka browser Chrome di HP 2: `http://<IP_LAPTOP>:8000/client_mobile_hp2/hp2_web_mic.html`.
    - Berikan izin mikrofon browser, lalu klik tombol **"🎤 Mulai Baca Mikrofon HP 2"**.
-6. **Lakukan Uji Suara Nyata**:
+6. **Catatan Akses Mikrofon Browser HP (Penting)**:
+   - Sesuai standar keamanan W3C/Google Chrome, mikrofon fisik diblokir jika diakses melalui IP LAN HTTP biasa (`Cannot read properties of undefined (reading 'getUserMedia')`).
+   - **Solusi Praktis A (Tombol Simulasi)**: Anda cukup menekan tombol simulasi di bawah tombol mic (`Sim: Dosen` di HP 1, `Sim: Obrolan` di HP 2).
+   - **Solusi Praktis B (Mikrofon Fisik Nyata)**: Buka `chrome://flags` di Chrome HP $\to$ cari `unsafely-treat-insecure-origin-as-secure` $\to$ masukkan `http://<IP_LAPTOP>:8000` $\to$ Ubah ke **Enabled** & klik **Relaunch**. Mikrofon fisik asli HP akan langsung aktif membaca suara nyata!
+7. **Lakukan Uji Suara Nyata**:
    - Berbicaralah di dekat HP 1 (suara pengajar) $\to$ amati kenaikan dB di Node 1.
    - Mengobrollah dengan teman di dekat HP 2 $\to$ amati kenaikan Rasio Vokal (300-3400 Hz) dan Bar Probabilitas Obrolan di Node 2.
    - Bertepuk tangan kencang bersamaan $\to$ amati alarm kebisingan berbunyi dan tercatat di riwayat alarm.
